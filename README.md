@@ -4,9 +4,6 @@ IDL Model Simulating Emission Rates in Surface-Bound Planetary Exospheres
 Carl Schmidt, BU, 2020
 Originally adapted from Jody Wilson, Boston University, 2007 
 
-MODIFICATIONS:
-   5/7/2020: began edits to output display for MESSENGER UVVS viewing comparisons
-
 DEPENDENCIES:
 
 1. This code implents routines from the Coyote, and NASA IDL Astro Libraries. These may be downloaded at: 
