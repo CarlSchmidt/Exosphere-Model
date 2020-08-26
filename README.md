@@ -1,5 +1,5 @@
 # Exosphere-Model
-IDL Model Simulating Emission Rates in Surface-Bound Planetary Exospheres
+IDL Model for Simulating Emission Rates in Surface-Bound Planetary Exospheres
 
 Carl Schmidt, BU, 2020
 Originally adapted from Jody Wilson, Boston University, 2007 
