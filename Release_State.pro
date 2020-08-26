@@ -268,15 +268,15 @@ endif
 ;     Szalay et al. (2018)
 if STRPOS(speed_distribution, 'Cone') eq 0 then begin
   
-  
-  
   ;debug = 1
   
   angles_from_normal = fltarr(N_particles)
 
-  ; For ejection angles: direction weighted by the cosine of the angle between ejection and the surface normal.
-  ; Fet the distribution function we're going to weight over.
-  distribution_function = sin((!pi/2.) * findgen(N_particles)/N_particles) * cos((!pi/2.)*findgen(N_particles)/N_particles)^3. ; Hack! But looks okay... compare with Szalay et al 2018, Impact Ejecta and Gardening in the Lunar Polar Regions
+  ; Ejection direction is weighted.
+  ; Get the distribution function we're going to weight over.
+    distribution_function = sin((!pi/2.) * findgen(N_particles)/N_particles) * cos((!pi/2.)*findgen(N_particles)/N_particles)^3. ; Hack! 
+  ; But looks okay... compare with Szalay et al 2018, Impact Ejecta and Gardening in the Lunar Polar Regions
+  
   sum = distribution_function ;sum up the distribution function element by element into an array
   for i = 1, n_elements(distribution_function)-2 do begin
     sum(i) = sum(i-1)+((distribution_function(i-1) + distribution_function(i))/2.)
