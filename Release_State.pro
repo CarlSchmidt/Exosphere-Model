@@ -1,7 +1,7 @@
 pro Release_State, loc, speed_distribution, surface_distribution, speed
 
 COMMON Model_shared, Body, Ephemeris_time, Seed, Directory, Particle_data, Line_data, Debug
-COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in_frame, viewpoint, FOV, N_ticks, Tickstep, Observatory, Above_Ecliptic, Boresight_Pixel
+COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in_frame, viewpoint, FOV, N_ticks, Tickstep, Observatory, Above_Ecliptic, Boresight_Pixel, Aperture_Corners
 
   N_particles = N_elements(loc[0,*])
 
@@ -70,7 +70,7 @@ COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in
     STRMATCH(surface_distribution, 'Global'): BEGIN                                                           ; Generate isotropic latitudes and longitudes for all particles
         lat = asin(1.d - 2.d*randomu(seed, N_particles, /double))             ; gives a random number, -90 to 90 degrees (in radians) weighted towards the equator (more surface area per unit latitude)
         lon = 360.d*randomu(seed, N_particles, /double) /!RADEG               ; gives random longitudes 0 to 360 (in radians)
-        cspice_pgrrec, body, lon, lat, 0., re, flat, release_points_body_fixed; convert these to cartesian, body fixed coords untis of planetary radii here, not km
+        cspice_pgrrec, body, lon, lat, replicate(0.D, N_particles), re, flat, release_points_body_fixed; convert these to cartesian, body fixed coords untis of planetary radii here, not km
         release_points_J2000 = release_points_body_fixed / re                 ; since these are random and isotropic in x, y, z, the reference frame does not matter, use body radii coordinates
     END  
     STRMATCH(surface_distribution, 'Dayside'): BEGIN
@@ -205,59 +205,55 @@ endif
   
     angles_from_normal = fltarr(N_particles)
   
-    ;for ejection angles: direction weighted by the cosine of the angle between ejection and the surface normal.
-        ;get the distribution function we're going to weight over.
-        distribution_function = sin((!pi/2.) * findgen(N_particles)/N_particles) * cos((!pi/2.)*findgen(N_particles)/N_particles)  
-        sum = distribution_function ;sum up the distribution function element by element into an array
-        for i = 1, n_elements(distribution_function)-2 do begin
-            sum(i) = sum(i-1)+((distribution_function(i-1) + distribution_function(i))/2.)
-        endfor
-        sum = sum/max(sum) ;normalize to a maximum of one
-        distribution_function = distribution_function/float(max(sum))
-        r = findgen(N_particles)/N_particles
-        theta = fltarr(N_particles) ;speed is the speed each particle will have 
-        i = long(0)
-        while i le n_elements(sum)-2 do begin ;step through the sum of the distribution 
-            top = sum(i)      
-            bottom = 0.
-            if i gt 0 then bottom = sum(i-1) ;the lower bound of the sum of the distribution 
-            inrange = where((r lt top) and (r ge bottom))
-            if inrange(0) ne -1 then theta(inrange) = i
-            i=i+long(1)
-            if sum(i-1) eq 1. then i = n_elements(sum)-1 ; when stepping through the distribution totals to 1, stop the loop
-        endwhile 
-        theta = theta*((!pi/2.)/N_particles) ;scale it from 0 to pi/2.
-       
-        ; -> randomize them so that they differ for each particle following the random number seed.
+    ; Ejection angle's direction weighted by the cosine of the angle between ejection and the surface normal.
+    
+      r     = findgen(N_particles) / N_particles                      ; a zero to 1 array of n_particle increments
+      theta = fltarr(N_particles)                                     ; the independent variable that we're weighting over, in this case the angle each particle will have 
+  
+      ; Define the probability distribution function that we're going to weight over.
+        distribution_function = sin(!pi*r/2.) * cos(!pi*r/2.)  
+
+      sum = TOTAL( distribution_function, /CUMULATIVE )               ; get the cumulative sum of the distribution over elements 0 to i, ie, the cumulative distribution function
+      sum = sum/max(sum)                                              ; normalize the CDF to a maximum of one
+
+      for i = 1, N_particles-1 do begin                               ; step through the CDF, I don't see a way to vectorize this
+        inrange = where((r ge sum[i-1]) and (r lt sum[i]), count, /null)    
+        if count gt 0 then theta[inrange] = i
+      endfor
+      theta = (theta/N_particles) * (!pi/2.)                          ; scale the distribution from 0 to pi/2 radians.
+
+      ; -> randomize them so that they differ for each particle following the random number seed.
         randomNumbers = RANDOMU(seed, N_particles) 
         scrambled_indicies = SORT(randomNumbers)
         theta[indgen(N_particles)] = theta[scrambled_indicies]
+
+      phi = 360.*randomu(seed, N_particles) / !RADEG                  ; Isotropic in azimuth, random numbers evenly distributed between 0 and 360 degrees (in radians)
   
-        phi = 360.*randomu(seed,N_particles)/!RADEG  ;gives random numbers evenly distributed between 0 and 360 degrees (in radians), random and isotropic in azimuth
-    
-        ;where in a spherical coordinate system where z is defined as polar_angle_distribution (theta) = 0 is the z axis, phi is the angle relative to the x axis.
-        loc[5,*]=sin(theta)*cos(phi)  ;the x-direction 
-        loc[6,*]=sin(theta)*sin(phi)  ;the y-direction
-        loc[7,*]=cos(theta)           ;the z-direction  
+      ; We're in a spherical coordinate system where z is defined as polar_angle_distribution (theta) = 0 is the z axis, phi is the angle relative to the x axis.
+        loc[5,*] = sin(theta)*cos(phi)  ;the x-direction 
+        loc[6,*] = sin(theta)*sin(phi)  ;the y-direction
+        loc[7,*] = cos(theta)           ;the z-direction  
         
       ; Okay, now a cosine dependent distribution of polar angles is created as cartesian vectors. 
-      ; However this distribution of vectors is relative to the individual surface vectors xyz and not the absolute coordinates. ->
+      ; However this distribution is relative an aribitrary coordinate system, where z (loc[7,*]) is up, not the individual surface normal vectors xyz ->
       ; Compute each surface normals rotation from absolute x,y,z, then apply that rotation to the velocity vectors one by one, 
       ; Making each velocity vector specific to a particular surface location.
       ; IT'D BE USEFUL TO VECTORIZE THIS!! (instead of the for loop below) 
-        z_axis = [0., 0., 1.] ;define the z-axis in vector space.
-        
+        z_axis = [0., 0., 1.] ; define the z-axis in vector space.
+   
         ;Rotate to align the z axis in the velocity vector distribution to the surface normal vectors. . .     
         for q = 0, N_particles-1 do begin
           Surface_Normal              = loc[0:2,q] ; Vectors normal to the local surface.      
-          Velocity_Vector_WRT_Surface = loc[5:7,q] ; ?????????in the surface normal frame before rotation to the absolute.????????    
-          cspice_vcrss,surface_normal,z_axis,surface_normal_cross_z ;the cross product of the two. This resultant vector is the axis of rotation 
-          Suface_Normal_Angle_WRT_Z = cspice_vsep(surface_normal,z_axis) ;the angle between z axis and the surface vector where the particle is released.       
-          ;rotate the velocity vector so that the z axis (which it was generated WRT) is the surface normal. 
-          cspice_vrotv, Velocity_vector_WRT_Surface, surface_normal_cross_z, -(Suface_Normal_Angle_WRT_Z), Velocity_vector_WRT_Absolute 
-          loc[5:7,q] = Velocity_vector_WRT_Absolute ;put it in the loc array velocity corresponding to particle q           
+          Velocity_Vector_WRT_Surface = loc[5:7,q] ; Velocity unit vectors in an arbitary Z is up frame, we want to rotation these into a Surface normal is up frame
+          cspice_vcrss, surface_normal, z_axis, surface_normal_cross_z           ; the cross product of the two. This resultant vector is the axis of rotation 
+          Suface_Normal_Angle_WRT_Z = cspice_vsep(surface_normal,z_axis)         ; the angle between z axis and the surface vector where the particle is released.       
+          
+          ; rotate the velocity vector so that the z axis (which it was generated WRT) is now the surface normal. 
+            cspice_vrotv, Velocity_vector_WRT_Surface, surface_normal_cross_z, -(Suface_Normal_Angle_WRT_Z), Velocity_vector_WRT_Absolute 
+            loc[5:7,q] = Velocity_vector_WRT_Absolute                            ; put it in the loc array velocity corresponding to particle q           
           if keyword_set(debug) then angles_from_normal[q] = !Radeg * cspice_vsep(loc[0:2,q], loc[5:7,q]) ; for each particle compute the ejection angle relative to normal as a check   
         endfor 
+
         ;check to be sure these have a cosine like dependence . . . should peak at 45 degrees       
         if keyword_set(debug) then cgHISTOPLOT, angles_from_normal, binsize = 2.,xtitle = 'Ejection Angle from Surface Normal (Degrees)', Ytitle = 'Number of particles' 
   endif

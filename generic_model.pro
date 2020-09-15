@@ -53,15 +53,16 @@ pro generic_model, Time_range_this_run = Time_range_this_run, test_particle_this
 ;========================================COMMON BLOCKS===================================================================
 
 COMMON Model_shared, Body, Ephemeris_time, Seed, Directory, Particle_data, Line_data, Debug
-COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in_frame, viewpoint, FOV, N_ticks, Tickstep, Observatory, Above_Ecliptic, Boresight_Pixel
+COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in_frame, viewpoint, FOV, N_ticks, Tickstep, Observatory, Above_Ecliptic, Boresight_Pixel, Aperture_Corners
 
 ;===========================================INPUTS=======================================================================
 directory          = 'C:\IDL\Generic Model V2\read_write\' ; Directory where all other files are read from and written to
 kernel_directory   = 'C:\SPICE\'                           ; Directory where the spice kernel files live 
 Body               = 'Mercury'                             ; e.g., 'Mercury', 'CHURYUMOV-GERASIMENKO', 'Moon' 
 ;UTC                = 'Feb 26, 2017 07:00:00'              ; Universal coordinate time to be modeled, time when image taken.
-;UTC                = 'Oct 11, 2007 05:51:00'              ; Universal coordinate time to be modeled, time when image taken.
-;UTC                = '2018-12-13T16:22:49'                 ; Potassium conventional data from Haleakala
+;UTC                = '2020-Nov-13 23:20'                   ; Mercury Peak Na radiation pressure
+;UTC                = '2007-Jun-06 12:40'                   ; Mercury Aphelion
+;UTC                = '2018-12-13T16:22:49'                ; Potassium conventional data from Haleakala
 ;UTC                = 'Apr 08, 2005 22:10:00'              ; Solar eclipse from McDonald
 if keyword_set(UTC_this_run) then UTC=UTC_this_run else $  ; Use the input specified by the caller, or...
 UTC                 = '2011-Aug-04 02:08:37.43'           ; Tim's first datapoint UTC
@@ -86,7 +87,7 @@ Speed_distribution = 'MBF_1200K'                           ; Set the speed distr
                                                            ;          'Step_[Vmin,Vmax]'  random velocities between Vmin
                                                            ;                                        and Vmax specified in km/s 
 if keyword_set(Surface_distribution_this_run) then Surface_distribution = Surface_distribution_this_run else $   
-Surface_distribution = 'Point_[0.,29.]' ;'Dayside'                           ; Set the surface distribution the particles will be released with
+Surface_distribution = 'Global' ;'Dayside'                           ; Set the surface distribution the particles will be released with
                                                            ; Options: 'Global'            Everywhere uniform
                                                            ;          'Dayside'           Uniform 2pi steradians, centered in sub-solar longitude [-90,90 lat]
                                                            ;          'Point_[lon,lat]'   Specified W. Lon & Lat [degrees]                 
@@ -117,14 +118,15 @@ Upward_flux_at_exobase = 1.e26                             ; Meteor's total vapo
 Debug                  = 0                                 ; Set to 1 to output more detail at intermidiate steps.        
 exobase_height         = 0.d                               ; Exobase altitude above the surface, units of KM
 if keyword_set(Loop_times_this_run) then Loop_times=Loop_times_this_run else $ 
-Loop_times             = 2.                                ; How many loops the model should run, runs are stacked and averaged so this sets statistical noise  
+Loop_times             = 1.                                ; How many loops the model should run, runs are stacked and averaged so this sets statistical noise  
 FOV                    = 3600.*90.                         ; ARCSECONDS to a side. Field of View to display for output images that are in SKY COORDINATES  
 N_ticks                = 10.                               ; Number of tick marks in the axis of the sky coordinate image
 tickstep               = 200.                              ; Axis tick step size in Body radii for the 'Above ecliptic' viewings  
 
 ;===========================================KEYWORDS=======================================================================
-Label_Phase         = 0                                    ; Display the body's phase angle as pixels? MAJOR ISSUE: Needs rotation to plane of sky. 
-Above_Ecliptic      = 0                                    ; Also writes an output image viewed from above the ecliptic plane with "Plot_range" field of view (longer run times)
+Bounce                 = 0                                 ; Particles re-impacting the surface can bounce (=1) or stick (=0) 
+Label_Phase            = 0                                 ; Display the body's phase angle as pixels? MAJOR ISSUE: Needs rotation to plane of sky. 
+Above_Ecliptic         = 0                                 ; Also writes an output image viewed from above the ecliptic plane with "Plot_range" field of view (longer run times)
           
 ;***********************************************OUTPUTS*************************************************
 ;                         All outputs are saved to the read_write directory
@@ -208,30 +210,31 @@ Above_Ecliptic      = 0                                    ; Also writes an outp
       release_rate = number_of_particles / duration                            ; release rate of particles into the model in particles per second
       atoms_per_packet = Upward_flux_at_exobase / release_rate                 ; (atoms/s)/(packets/s), the average packet content loc[4,*] must be unity initially.  
 
-;    ; Calculate the photo-ionization rate. UV fluxes come from SORCE and SEE
-;      Print, 'Loading incident solar flux. . . ' 
-;      Irrandiance, body, UTC, Time_range, directory, Flux, debug=debug   ;flux array is [wavelength in nm, solar photons s^(-1) cm^(-2)] 
-;      Ionize_lambda = 1239.84187 / particle_data.Ionization_potential    ;convert ionization potential from eV to nm wavelength
-;      near = Min(Abs(float(Flux[0,*]) - Ionize_lambda), threshold)       ;only include wavelengths up to the ionization threshhold        
-;      flux = flux[*, 0:threshold]  
-;      interpolated_cross_sect = reform(INTERPOL(particle_data.photo_ionize_data[1,*], particle_data.photo_ionize_data[0,*], flux[0,*])) 
-;      ionizelife = (total(interpolated_cross_sect * flux[1,*])) ^ (-1.)  ;the e-folding lifetime in s
-;      If keyword_set(debug) then begin                                   ;for direct comparison with Huebner et al., 1992
-;        print, strcompress('Photo-ionization rate (s^-1) =' + string(ionizelife ^ (-1.)) + ', Lifetime = ' + string(ionizelife) + ' s')  
-;        Window, 0, Title = strcompress('Total ' + test_particle + ' Photolysis Rate = '+ string(ionizelife ^ (-1.)) + ' per second at ' + Body)
-;        plot, flux[0,*]*10., interpolated_cross_sect*flux[1,*]/10., xrange = [0, Ionize_lambda*10.], /ylog, ystyle = 1., $ 
-;          yrange = [1.e-14, 2.e-7], Xtitle = strcompress('Wavelength ' + cgSymbol("angstrom")), $
-;          ytitle = strcompress('Photolysis Rate Coefficient s!U-1!N ' + cgSymbol("angstrom") + '!U-1!N'), psym=10, $
-;          Color=cgColor('black'), Background=cgColor('white'), thick = 2., charthick = 1.6, charsize =1.6
-;      endif
-Case test_particle of ; Force photoionization lifetime in seconds (Huebner & Mukherjee, 2015) Above calculation Irradiance.pro yeilds longer lifetimes! 
-  'Na': ionizelife  = 1./7.26e-6          
-  'Mg': ionizelife  = 1./6.49e-7 
-  'K' : ionizelife  = 1./2.70e-5                
-endcase
+      ;    ; Calculate the Time-Dependent photo-ionization rate using the cross-section vs. wavelength UV fluxes come from SORCE and SEE
+      ;      Print, 'Loading incident solar flux. . . ' 
+      ;      Irrandiance, body, UTC, Time_range, directory, Flux, debug=debug   ;flux array is [wavelength in nm, solar photons s^(-1) cm^(-2)] 
+      ;      Ionize_lambda = 1239.84187 / particle_data.Ionization_potential    ;convert ionization potential from eV to nm wavelength
+      ;      near = Min(Abs(float(Flux[0,*]) - Ionize_lambda), threshold)       ;only include wavelengths up to the ionization threshhold        
+      ;      flux = flux[*, 0:threshold]  
+      ;      interpolated_cross_sect = reform(INTERPOL(particle_data.photo_ionize_data[1,*], particle_data.photo_ionize_data[0,*], flux[0,*])) 
+      ;      ionizelife = (total(interpolated_cross_sect * flux[1,*])) ^ (-1.)  ;the e-folding lifetime in s
+      ;      If keyword_set(debug) then begin                                   ;for direct comparison with Huebner et al., 1992
+      ;        print, strcompress('Photo-ionization rate (s^-1) =' + string(ionizelife ^ (-1.)) + ', Lifetime = ' + string(ionizelife) + ' s')  
+      ;        Window, 0, Title = strcompress('Total ' + test_particle + ' Photolysis Rate = '+ string(ionizelife ^ (-1.)) + ' per second at ' + Body)
+      ;        plot, flux[0,*]*10., interpolated_cross_sect*flux[1,*]/10., xrange = [0, Ionize_lambda*10.], /ylog, ystyle = 1., $ 
+      ;          yrange = [1.e-14, 2.e-7], Xtitle = strcompress('Wavelength ' + cgSymbol("angstrom")), $
+      ;          ytitle = strcompress('Photolysis Rate Coefficient s!U-1!N ' + cgSymbol("angstrom") + '!U-1!N'), psym=10, $
+      ;          Color=cgColor('black'), Background=cgColor('white'), thick = 2., charthick = 1.6, charsize =1.6
+      ;      endif
+      
+      Case test_particle of ; Force photoionization lifetime in seconds (Huebner & Mukherjee, 2015) Above calculation Irradiance.pro yeilds longer lifetimes! 
+        'Na': ionizelife  = 1./7.26e-6  ; Quiet Sun, Huebner & Mukherjee, 2015       
+        'Mg': ionizelife  = 1./6.49e-7  ; Huebner & Mukherjee, 2015
+        'K' : ionizelife  = 1./2.70e-5  ; Huebner & Mukherjee, 2015              
+      endcase
+      
     ; Integrate the equations of motion
       Print, 'Starting particle motion integration. . . '
-      ;RK4_integrate2, loc, bounce, ionizelife, atoms_per_packet, timestep
       RK4_integrate_adaptive, loc, bounce, ionizelife, atoms_per_packet, timestep
       ; The loc array now contains final particle locations. Now to plot them taking into account shadowing and g-values
 
@@ -292,7 +295,7 @@ endcase
       1: SXADDPAR, Header, 'time_range', time_range[0], ' Duration of particle integration [days]'
       2: ;SXADDPAR, Header, 'time_range', string(time_range[0]), ' Duration of particle integration [days]' need to write a string or a scalar here, what to do?
     Endcase
-    MKHDR,ext_Header, fltarr(Output_Size_In_Pixels[0], Output_Size_In_Pixels[1]), /IMAGE ; make an image extention header
+    MKHDR, ext_Header, fltarr(Output_Size_In_Pixels[0], Output_Size_In_Pixels[1]), /IMAGE ; make an image extention header
 
   ; Write an output FITS file with the mean brightness [extension 0], column density [extension 1] and header info about the input parameters simulated
     mwrfits, Model_Image_R,  strcompress(directory+Output_title+'.fit'), Header, /create, /Silent ; Write the brightness in Rayleighs
@@ -305,12 +308,31 @@ endcase
 
   ; Plot the final loop-averaged results 
     if keyword_set(Label_time) then Label_time = string(max(time_range)*24., format = '(F3.1)')
-    ;Observatory = 'McDonald'
-    ;output_display, loc, g, atoms_per_packet, Image_type, loop_number, 2, label_phase = label_phase, Label_time = Label_time
-    ;Observatory = 'CASLEO'
     output_display, loc, g, atoms_per_packet, Image_type, loop_number, 2, label_phase = label_phase, Label_time = Label_time
+  
+  ; Output_display can define spacecraft instrument pointing info, if there's any such information present
+  ; add another fits binary table extention with this pointing info
+    if keyword_set(Boresight_Pixel) then begin
+      Pointing_info = {Pointing, Boresight_Pixel:Boresight_Pixel, Aperture_Corners:Aperture_Corners}
+      mwrfits, Pointing_info, strcompress(directory+Output_title+'.fit') ; Append the pointing info into FITS extension 2
+    endif  
+;      SXADDPAR, Header, 'BORE_X', Boresight_Pixel[0], 'Boresight X Nearest Pixel'
+;      SXADDPAR, Header, 'BORE_Y', Boresight_Pixel[0], 'Boresight Y Nearest Pixel'
+;    endif  
+;    if keyword_set(Aperture_Corners) then
+;      SXADDPAR, Header, 'APER1X', Aperture_Corners[0,0], 'Aperture Corner 1 X Position'
+;      SXADDPAR, Header, 'APER1Y', Aperture_Corners[1,0], 'Aperture Corner 1 Y Position'
+;      SXADDPAR, Header, 'APER2X', Aperture_Corners[0,1], 'Aperture Corner 2 X Position'
+;      SXADDPAR, Header, 'APER2Y', Aperture_Corners[1,1], 'Aperture Corner 2 Y Position'
+;      SXADDPAR, Header, 'APER1X', Aperture_Corners[0,2], 'Aperture Corner 3 X Position'
+;      SXADDPAR, Header, 'APER1Y', Aperture_Corners[1,2], 'Aperture Corner 3 Y Position'
+;      SXADDPAR, Header, 'APER1X', Aperture_Corners[0,3], 'Aperture Corner 4 X Position'
+;      SXADDPAR, Header, 'APER1Y', Aperture_Corners[1,3], 'Aperture Corner 4 Y Position'
+;      
+;    endif
+;    ;MODFITS, strcompress(directory+Output_title+'.fit'), 0, header ; Update header 
     
-print,'Done, Number of model loops =', Loop_number
-print,'Execution Time =',(systime(/seconds)-start_time)/3600.,'   hours'
-return
+  print,'Done, Number of model loops =', Loop_number
+  print,'Execution Time =',(systime(/seconds)-start_time)/3600.,'   hours'
+  return
 end

@@ -16,15 +16,17 @@ function RK_4_acceleration, Body_xyz, Sun_xyz, time, v
   sun_particle = Sun_xyz
 
   ; Get the distance cubed from the Body and the Sun
-  r_Body3 = ([x^2] + [y^2] + [z^2])^1.5                                            ; distance to the body center cubed for each packet (units of km)
-  r_Sun3  = (sun_particle[0,*]^2 + sun_particle[1,*]^2 + sun_particle[2,*]^2)^1.5  ; distance from the Sun cubed (units of km)
-  helio_dist = r_Sun3^(1./3.)
+    r_Body3 = ([x^2] + [y^2] + [z^2])^1.5                                            ; distance to the body center cubed for each packet (units of km)
+    r_Sun3  = (sun_particle[0,*]^2 + sun_particle[1,*]^2 + sun_particle[2,*]^2)^1.5  ; distance from the Sun cubed (units of km)
+    helio_dist = r_Sun3^(1./3.)
 
   ; Calculate radiation acceleration (the radaccel.pro inputs are velocity in m/s and range to be in AU -> convert from km units)
-  radaccel, Line_data.line, v*1000., helio_dist / 149597871., Line_data.wavelength, Line_data.intensity, arad ; arad is in cm/2^s
+    radaccel, Line_data.line, v*1000., helio_dist / 149597871., Line_data.wavelength, Line_data.intensity, arad ; arad is in cm/2^s
+    ; Note that this result is ~15% less than Smyth models for Na
 
   ; Check the fraction of the solar disc seen by the atoms (units of km)
-  arad = float(arad) * illumination(time, x, y, z) / 1.e5 ; scale radiation acceleration by the fraction of sunlight that each particle sees
+    arad = float(arad) * illumination(time, x, y, z) / 1.e5 ; scale radiation acceleration by the fraction of sunlight that each particle sees
+    
   ; convert radiation acceleration from cm/s^2 to km/s^2
   if keyword_set(GM_Parent) then begin
     cspice_bods2c, body, bodyID_code, found
@@ -149,7 +151,7 @@ end
 
 pro RK4_integrate_adaptive, loc, bounce, ionizelife, atoms_per_packet, timestep
   COMMON Model_shared, Body, Ephemeris_time, Seed, Directory, Particle_data, Line_data, Debug
-  COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in_frame
+  COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in_frame, viewpoint, FOV, N_ticks, Tickstep, Observatory, Above_Ecliptic, Boresight_Pixel, Aperture_Corners
   COMMON Gravity, GM_Body, GM_Sun, GM_Parent
 
   t = loc[9,*] - loc[8,*] ;time remaining to track particle
@@ -164,12 +166,13 @@ pro RK4_integrate_adaptive, loc, bounce, ionizelife, atoms_per_packet, timestep
     radius_found = cspice_bodfnd( bodyID_code, "RADII" )
     Mass_found = cspice_bodfnd( bodyID_code, "GM" )
     if (radius_found and mass_found) then begin
-      cspice_bodvrd, Body,'RADII', 3, Body_radius ;Find the body's radius in Km
+      cspice_bodvrd, Body, 'RADII', 3, Body_radius                                                        ; Find the body's radius in Km
+      flat = (Body_radius[0] - Body_radius[2])/Body_radius[0]
       Body_radius = float(Body_radius[0])
-      cspice_bodvrd, body, "GM", 3, GM_Body ;Find G*Mass in in Km^3/s^2
+      cspice_bodvrd, body, "GM", 3, GM_Body                                                               ; Find G*Mass in in Km^3/s^2
       if keyword_set(debug) then print, 'Body Gravitational Constant: G * Mass (m^3/s^2) =', GM_Body*1.e9 ; Mercury is -2.20356e13 m^3/s^2
-      GM_Body = float(-GM_Body[0]) ;negate (attractive)
-    endif else begin ; Error Handling
+      GM_Body = float(-GM_Body[0])                                                                        ; Negate (attractive)
+    endif else begin                                                                                      ; Error Handling
       VAR = strcompress('BODY'+string(bodyID_code)+'*', /remove_all)
       cspice_gnpool, VAR, 0, 10, 81, kervar, found
       print, 'Insufficient data in the SPICE kernal pool needed to calculate gravitational constants. Available information:'
@@ -185,7 +188,7 @@ pro RK4_integrate_adaptive, loc, bounce, ionizelife, atoms_per_packet, timestep
     endelse
 
   ; Sun
-    cspice_bodvrd, 'Sun', "GM", 3, GM_Sun ; Find G*Mass in in Km^3/s^2
+    cspice_bodvrd, 'Sun', "GM", 3, GM_Sun ; The Keplerian GM of the Sun in units km^3/s^2
     GM_Sun = float(-GM_Sun[0])            ; negate (attractive)
 
   ; Parent body (Moons only)
@@ -195,6 +198,23 @@ pro RK4_integrate_adaptive, loc, bounce, ionizelife, atoms_per_packet, timestep
       if keyword_set(debug) then print, 'Parent Body Gravitational Constant: G * Mass (m^3/s^2) =', GM_Parent*1.e9 ;Saturn is ? m^3/s^2
       GM_Parent = -GM_Parent[0]  ;negate (attractive)
     endif
+
+  ; If we're dealing with surface interactions we'll also need a surface temperature model, run it if it hasn't been run already
+    IF KEYWORD_SET(bounce) THEN BEGIN                             
+      Thermal_model_exists    = File_search(Directory+body+'_Temperature.nc')
+      if Thermal_model_exists eq Directory+body+'_Temperature.nc' then begin
+        ID            = NCDF_OPEN(Thermal_model_exists, /NOWRITE)
+        tempID        = ncdf_varid(ID, 'temp')
+        latID         = ncdf_varid(ID, 'lat')
+        lonID         = ncdf_varid(ID, 'lon')
+        if body eq 'Mercury' then orbital_lonID = ncdf_varid(ID, 'true_anomaly') else orbital_lonID = ncdf_varid(ID, 'orbital_lon') ; Mercury uses true anomaly angle
+        ncdf_varget, ID, tempID, Temperature
+        ncdf_varget, ID, latID, Thermal_lat
+        ncdf_varget, ID, lonID, Thermal_lon         ; lon increases with time
+        ncdf_varget, ID, orbital_lonID, orbital_lon ; orbital Longitude, or in Mercury's case, true anomaly angle (zero eq Jovian Noon)
+        ncdf_close, ID
+      endif else Surface_Temperature, Directory, Body, Time, Temperature_map, Silent = Silent ; Fix needed, the time input here might need to be an orbital longitude/TAA of 0.0 (unsure of this) 
+    endif  
 
   ; Tolerances for the adaptive RK step                 
     ;tolspace = platescale^(-1.)                  ; Spatial tolerence is the size of a pixel in units of body radii
@@ -215,8 +235,9 @@ pro RK4_integrate_adaptive, loc, bounce, ionizelife, atoms_per_packet, timestep
   count = 0
   hold  = h
 
-  ;Step_Type = 'Fixed'
-  Step_Type = 'Adaptive'
+  ; Set which flavor of Runge-Kutta step to use
+  ; Step_Type = 'Fixed'
+    Step_Type = 'Adaptive'
 
   max_integration = max(t)
 
@@ -309,15 +330,124 @@ pro RK4_integrate_adaptive, loc, bounce, ionizelife, atoms_per_packet, timestep
 
     ; Check for particles hitting the body
       loc[3,moretogo] = sqrt(loc[0,moretogo]^2 + loc[1,moretogo]^2 + loc[2,moretogo]^2)
-      Hit_Body = where(loc[3,moretogo] lt body_radius)
+      Hit_Body = where(loc[3,moretogo] lt body_radius[0], N_reimpacts)
       if Hit_Body[0] ne -1 then begin
-        loc[4,moretogo[Hit_Body]] = 0.                              ; set the fractional content of packets that hit the surface to zero
-        loc[8,moretogo[Hit_Body]] = loc[9,moretogo[Hit_Body]]       ; set the time left in the integration to zero (because t = loc(9,*)-loc(8,*))
-        print,n_elements(Hit_Body),'  Particles collided with the surface (no bouncing)'
+        IF KEYWORD_SET(bounce) THEN BEGIN                             ; turn on the bouncing of particles off the surface if bounce = 1
+          Number_that_bounced = 0
+
+          ; calculate the surface temperature at the re-impact location
+          ; transform landing coordinates to body-fixed cartesian and then to planetographic coordinates   
+            cspice_sxform, 'J2000', 'IAU_' + body, ephemeris_time - t[Hit_Body], J2000_to_body_fixed_xform 
+            
+            BF_State     = dblarr(6, N_reimpacts) ;needed? 
+            TAA_index    = fltarr(N_reimpacts)
+            solar_lambda = fltarr(N_reimpacts)
+            solar_mu     = fltarr(N_reimpacts)
+
+            for i = 0, N_reimpacts - 1 do begin
+              BF_State[*,i] = transpose( J2000_to_body_fixed_xform[*,*,i] ) # loc[0:5, moretogo[Hit_Body[i]]]             ; Body-Fixed cartesian states
+              cspice_recpgr, Body, BF_State[0:2,i], Body_radius[0], flat, p_lon, p_lat, p_alt                             ; Particle coords planetographic longitude definition
+              
+              cspice_subslr, 'Near point: ellipsoid', body, ephemeris_time - t[Hit_Body[i]], 'IAU_'+body, 'none', viewpoint, sub_solar_point_body_fixed, trgepc, srfvec 
+              cspice_recpgr, Body, sub_solar_point_body_fixed, Body_radius[0], flat, subslr_lon, subslr_lat, subslr_alt   ; Sub-solar point coords planetographic longitude definition
+      
+              ; Find Mercury's True Anomaly Angle
+                cspice_spkezr, Body, ephemeris_time - t[Hit_Body[i]], 'J2000', 'LT+S', 'Sun', state, ltime
+                cspice_oscelt, state, ephemeris_time - t[Hit_Body[i]], -GM_Sun, elts      ; Compute osculating orbital elements
+                ecc = ELTS[1]                                                             ; Eccentricity
+                MA  = ELTS[5]                                                             ; Mean Anomaly radians
+                ; Now get true anomaly from Mean anomaly and Eccentricity, see https://en.wikipedia.org/wiki/True_anomaly
+                ; Roy, A.E. (1988). Orbital Motion (1 ed.). Bristol, UK; Philadelphia, PA: A. Hilger. ISBN 0852743602.
+                TAA =  MA + (2.*ecc - 0.25*ecc^3)*sin(MA) + 1.25*(ecc^2)*sin(2.*MA)+ (13./12.)*(ecc^3)*sin(3.*MA)
+                True_Anomaly = TAA*!radeg ; True Anomaly in degrees
+                ;print, 'Mercury''s True Anomaly Angle:', True_Anomaly
+                
+                solar_lon = (P_lon - subslr_lon)*!radeg
+                if solar_lon lt -180. then solar_lon = solar_lon + 360.
+                if solar_lon gt 180. then solar_lon = solar_lon - 360.
+                          
+                TAA_index[i]      = interpol(findgen(n_elements(orbital_lon)), orbital_lon, True_Anomaly)   
+                solar_mu[i]       = interpol(findgen(n_elements(thermal_lat)), thermal_lat, (P_lat - subslr_lat)*!radeg - 90.)    ; Index of re-impacted particle's latitude from the sub-solar point
+                solar_lambda[i]   = interpol(findgen(n_elements(thermal_lon)), thermal_lon, solar_lon)                             ; re-impacted particle's longitude from the sub-solar point      
+                
+                ; Hack, I've not checked the E/W longitude convention in the thermal maps agrees with planetograph E/W. Murphy says it's wrong
+              endfor
+
+              Local_surface_temps = interpolate(Temperature, solar_lambda, solar_mu, TAA_index)
+              Sticking_prob       = sticking_coefficient(particle_data.name, Local_surface_temps) ; 0 to 1 probabilities for sticking, from experimental data on re-adsorption vs. temperture             
+              dice                = randomu(seed, N_reimpacts)                                    ; Monte-Carlo method, roll the dice. . . 
+              stick               = where(dice lt Sticking_prob, N_stuck, complement = bounce, Ncomplement = N_bounced, /Null) ; bounce or stick ? 
+
+              ; For those particles that stick...
+                loc[4,moretogo[Hit_Body[stick]]] = 0.                                             ; set the fractional content of packets that hit the surface to zero
+                loc[8,moretogo[Hit_Body[stick]]] = loc[9,moretogo[Hit_Body[stick]]]               ; set the time left in the integration to zero (because t = loc(9,*)-loc(8,*))
+                ; <<<< Future development: use this to map the contribution to the surface reservoir >>>>
+
+              ; For those particles that bounce... 
+                if N_bounced gt 0 then begin
+                
+                  ; indices of particles within loc that we want to bounce
+                    bounce_ind = moretogo[Hit_Body[bounce]]
+                  
+                  ; Reset the particle coordinates to just above the surface
+                    loc[0:2, bounce_ind] = loc[0:2, bounce_ind] * 1.00001 * $
+                                           body_radius[0] / rebin(loc[3, bounce_ind], 3, N_bounced)
+                                                           
+                  ; Reset the particle velocities, with optional thermal acccomodation to the local surface temp     
+                    thermal_accomodation_coeff = 0.0  ;0.62 ;Hunten et al. 1988
+                    V_thermal = sqrt(2.*1.3806503e-23*Local_surface_temps/particle_data.mass) * 1.e-3        ; surface thermal speed, in km/s
+                    V_initial = sqrt(loc[5, bounce_ind]^2+loc[6, bounce_ind]^2+loc[7, bounce_ind]^2)         ; re-impact velocity
+                    V_final = thermal_accomodation_coeff*V_thermal+(1.-thermal_accomodation_coeff)*V_initial ; give it a new speed in km/sec WRT the surface                                    
+  
+                  ; Assign new trajectories, bounce trajectories are weighted a COSINE DEPENDENCE WRT the surface normal
+                    r     = findgen(N_bounced) / N_bounced                            ; a zero to 1 array of n_particle increments
+                    theta = fltarr(N_bounced)                                        ; the independent variable that we're weighting over, in this case the angle each particle will have
+    
+                    ; Define the probability distribution function that we're going to weight over.
+                      distribution_function = sin(!pi*r/2.) * cos(!pi*r/2.)
+    
+                    sum = TOTAL( distribution_function, /CUMULATIVE )             ; get the cumulative sum of the distribution over elements 0 to i, ie, the cumulative distribution function
+                    sum = sum/max(sum)                                            ; normalize the CDF to a maximum of one
+    
+                    for i = 1, N_bounced-1 do begin                               ; step through the CDF, I don't see a way to vectorize this
+                      inrange = where((r ge sum[i-1]) and (r lt sum[i]), count_ind, /null)
+                      if count_ind gt 0 then theta[inrange] = i
+                    endfor
+                    theta = (theta/N_bounced) * (!pi/2.)                          ; scale the distribution from 0 to pi/2 radians.
+                    phi   = 360.*randomu(seed, N_bounced) / !RADEG                ; bounces are isotropic in azimuth 
+    
+                    ; -> randomize them so that they differ for each particle following the random number seed.
+                      randomNumbers = RANDOMU(seed, N_bounced)
+                      scrambled_indicies = SORT(randomNumbers)
+                      theta[indgen(N_bounced)] = theta[scrambled_indicies]
+                     
+                    loc[5,bounce_ind] = sin(theta)*cos(phi)  ; the x-direction
+                    loc[6,bounce_ind] = sin(theta)*sin(phi)  ; the y-direction
+                    loc[7,bounce_ind] = cos(theta)           ; the z-direction
+                    z_axis = [0., 0., 1.]           ; define the z-axis in vector space.
+                   
+                    ; Rotate to align the z axis in the velocity vector distribution to the surface normal vectors. . .
+                      for q = 0, N_bounced-1 do begin
+                        Surface_Normal              = loc[0:2,bounce_ind[q]] ; Vectors normal to the local surface.
+                        Velocity_Vector_WRT_Surface = loc[5:7,bounce_ind[q]] ; Velocity unit vectors in an arbitary Z is up frame, we want to rotation these into a Surface normal is up frame
+                        cspice_vcrss, surface_normal, z_axis, surface_normal_cross_z           ; the cross product of the two. This resultant vector is the axis of rotation
+                        Suface_Normal_Angle_WRT_Z = cspice_vsep(surface_normal,z_axis)         ; the angle between z axis and the surface vector where the particle is released.
+  
+                        ; rotate the velocity vector so that the z axis (which it was generated WRT) is now the surface normal.
+                          cspice_vrotv, Velocity_vector_WRT_Surface, surface_normal_cross_z, -(Suface_Normal_Angle_WRT_Z), Velocity_vector_WRT_Absolute
+                          loc[5:7,bounce_ind[q]] = Velocity_vector_WRT_Absolute * V_final[q]   ; write the vector back into the loc array, and scale it velocity                  
+                      endfor
+               endif ; N_bounced gt 0
+               print, string(N_reimpacts, format = '(I6)'), ' particles collided with the surface,', string(N_bounced, format = '(I6)'), ' bounced with zero thermal accomatation'
+        ENDIF ELSE BEGIN                                              ; bounce keyword is not set
+          loc[4,moretogo[Hit_Body]] = 0.                              ; set the fractional content of packets that hit the surface to zero
+          loc[8,moretogo[Hit_Body]] = loc[9,moretogo[Hit_Body]]       ; set the time left in the integration to zero (because t = loc(9,*)-loc(8,*))
+          print, string(N_reimpacts, format = '(I6)'), ' particles collided with the surface (bounce keyword not set at input)'
+        ENDELSE    
       endif
 
       hold[moretogo] = h
-      t = loc[9,*] - loc[8,*]                                       ; time remaining to track particle
+      t = loc[9,*] - loc[8,*]                                         ; time remaining to track particle
       count = count + 1
       if max(t) le time_error or count gt 5000 then done = 1
   endwhile

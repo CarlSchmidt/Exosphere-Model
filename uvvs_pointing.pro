@@ -108,8 +108,8 @@ pro UVVS_Pointing
 
   ; Now find the coordinates of the tangent point, verify the altitude of the tangent point and its lat, lon
     print, 'PDS UVVS DDR Boresight tangent altitude [center, min alt, max alt]:', UVVS_DDR[Start].TARGET_ALTITUDE   ; <---replicate this [center, min alt, max alt]
-    print, 'PDS UVVS DDR Boresight tangent Planetary Longitude:', UVVS_DDR[Start].TARGET_longitude
-    print, 'PDS UVVS DDR Boresight tangent Planetary Latitude:', UVVS_DDR[Start].TARGET_latitude
+    print, 'PDS UVVS DDR Boresight tangent Planetocentric Longitude:', UVVS_DDR[Start].TARGET_longitude
+    print, 'PDS UVVS DDR Boresight tangent Planetocentric Latitude:', UVVS_DDR[Start].TARGET_latitude
 
     theta = dblarr(N_elements(date))
     SC_to_tangent_point = dblarr(3, N_elements(date))
