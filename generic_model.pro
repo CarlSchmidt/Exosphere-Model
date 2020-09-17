@@ -56,8 +56,14 @@ COMMON Model_shared, Body, Ephemeris_time, Seed, Directory, Particle_data, Line_
 COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in_frame, viewpoint, FOV, N_ticks, Tickstep, Observatory, Above_Ecliptic, Boresight_Pixel, Aperture_Corners
 
 ;===========================================INPUTS=======================================================================
-directory          = 'C:\IDL\Generic Model V2\read_write\' ; Directory where all other files are read from and written to
-kernel_directory   = 'C:\SPICE\'                           ; Directory where the spice kernel files live 
+if !VERSION.OS_FAMILY eq ('unix' or 'MacOS') then begin    ; A simple way to differntiate my path from Tim's
+  directory          = '/Users/tica9197/Documents/mercury/Exosphere-Model-master/read_write/' 
+  kernel_directory   = '/Users/tica9197/Documents/mercury/kernels/'
+endif else begin
+  directory          = 'C:\IDL\Generic Model V2\read_write\' ; Directory where all other files are read from and written to
+  kernel_directory   = 'C:\SPICE\'                           ; Directory where the spice kernel files live
+endelse
+  
 Body               = 'Mercury'                             ; e.g., 'Mercury', 'CHURYUMOV-GERASIMENKO', 'Moon' 
 ;UTC                = 'Feb 26, 2017 07:00:00'              ; Universal coordinate time to be modeled, time when image taken.
 ;UTC                = '2020-Nov-13 23:20'                   ; Mercury Peak Na radiation pressure
@@ -65,7 +71,7 @@ Body               = 'Mercury'                             ; e.g., 'Mercury', 'C
 ;UTC                = '2018-12-13T16:22:49'                ; Potassium conventional data from Haleakala
 ;UTC                = 'Apr 08, 2005 22:10:00'              ; Solar eclipse from McDonald
 if keyword_set(UTC_this_run) then UTC=UTC_this_run else $  ; Use the input specified by the caller, or...
-UTC                 = '2011-Aug-04 02:08:37.43'           ; Tim's first datapoint UTC
+UTC                 = '2011-Aug-04 02:08:37.43'            ; Tim's first datapoint UTC
 
 if keyword_set(test_particle_this_run) then test_particle = test_particle_this_run else $   
 test_particle      = 'Na'                                  ; Species to model

@@ -62,24 +62,24 @@ Pro LOAD_LINE_DATA, LINE
       end
   ENDCASE
   
+  SOLAR_SPECTRUM_FILE = directory + 'Solar_Spectral_Irradiance\Kurucz\' + spectrum                ; Solar Spectrum at 1AU in W/m2/nm
+  if !VERSION.OS_FAMILY eq ('unix' or 'MacOS') then SOLAR_SPECTRUM_FILE = repstr(SOLAR_SPECTRUM_FILE, '\', '/')
+  
   CASE spectrum OF  
-    'Kurucz_2005_irradthuwl.dat': begin
-        ; Read in a solar spectrum
-        SOLAR_SPECTRUM_FILE = directory + '\Solar_Spectral_Irradiance\Kurucz\' + spectrum  ; Solar Spectrum at 1AU in W/m2/nm
-        READCOL, SOLAR_SPECTRUM_FILE, F='F,F', WL_nm, flux, STRINGSKIP = '#', /NAN, /Silent, Numline = numline, skipline = skipline ;flux is in W/m2/nm
+    'Kurucz_2005_irradthuwl.dat': begin   
+      READCOL, SOLAR_SPECTRUM_FILE, F='F,F', WL_nm, flux, STRINGSKIP = '#', /NAN, /Silent, Numline = numline, skipline = skipline ;flux is in W/m2/nm
     
-        ; change flux units from W/m^2/nm to photons / (cm^2 s A)
-        ; multiply by ((lambda / hc) / 1 W)  * (1 m^2 / 1e4 cm^2) * (1 nm / 10 A)
+      ; change flux units from W/m^2/nm to photons / (cm^2 s A)
+      ; multiply by ((lambda / hc) / 1 W)  * (1 m^2 / 1e4 cm^2) * (1 nm / 10 A)
         conversion = ((WL_nm*1.e-9)/(6.62606957e-34*299792458.D)) * (1./1.e4) * (1./10.)
-        flux = flux * conversion                                                                    ; photons / (cm^2 s A)
-        WL_A = temporary(WL_nm) * 10.                                                               ; Wavelength from nm into angstroms
-      end
-    'sao2010.solref.converted.txt': begin
-        SOLAR_SPECTRUM_FILE = directory + '\Solar_Spectral_Irradiance\Kurucz\' + 'sao2010.solref.converted.txt'  ; WL in nm, flux in Photons s-1 cm-2 nm-1 at 1AU
-        READCOL, SOLAR_SPECTRUM_FILE, F='F,F', WL_nm, flux, STRINGSKIP = '#', /NAN, /Silent 
-        flux = flux / 10.                                                                           ; photons / (cm^2 s nm) to photons / (cm^2 s A)
-        WL_A = temporary(WL_nm) * 10.                                                               ; Wavelength from nm into angstroms
-      end
+        flux = flux * conversion                                                                  ; photons / (cm^2 s A)
+        WL_A = temporary(WL_nm) * 10.                                                             ; Wavelength from nm into angstroms
+    end
+    'sao2010.solref.converted.txt': begin                                                     
+      READCOL, SOLAR_SPECTRUM_FILE, F='F,F', WL_nm, flux, STRINGSKIP = '#', /NAN, /Silent 
+      flux = flux / 10.                                                                           ; photons / (cm^2 s nm) to photons / (cm^2 s A)
+      WL_A = temporary(WL_nm) * 10.                                                               ; Wavelength from nm into angstroms
+    end
   ENDCASE
  
   Line_data = {name:name, line:line, unity_optical_depth:unity_optical_depth, wavelength:WL_A, intensity:flux}

@@ -1,8 +1,8 @@
 Pro Call_observing_sequence, Display_Correlation_Results = Display_Correlation_Results
 
 if keyword_set(Display_Correlation_Results) then begin
-  ;files = FILE_SEARCH('C:\IDL\Generic Model V2\read_write\Correlation_results\*_Round2.sav')
-  files = FILE_SEARCH('C:\IDL\Generic Model V2\read_write\Correlation_results\*_Hi-res.sav')
+  files = FILE_SEARCH('C:\IDL\Generic Model V2\read_write\Correlation_results\*_Round2.sav')
+  ;files = FILE_SEARCH('C:\IDL\Generic Model V2\read_write\Correlation_results\*Round1.sav')
   Correlations_Na = fltarr(n_elements(files)) & Correlations_Mg = fltarr(n_elements(files))
   for l = 0, n_elements(files)-1 do begin
     restore, files[l], /verbose
@@ -12,6 +12,7 @@ if keyword_set(Display_Correlation_Results) then begin
   junk = max(correlations_Na, loc)
   print, [strmid(transpose(files[reverse(SORT(correlations_Na))]), 66, strpos(transpose(files[reverse(SORT(correlations_Na))]),'_corr') - 66), $
           transpose(string(correlations_Na[reverse(SORT(correlations_Na))])), transpose(string(correlations_Mg[reverse(SORT(correlations_Na))]))], FORMAT='(A29,F10.5,F10.5)'
+  stop        
 endif
 
 ; ======================================= Post Bug Fix round 1 correlations ==================================================================
