@@ -112,8 +112,9 @@ Output_title           = 'Test'                            ; Title of the model'
 Number_of_particles    = long(2^15-1)                      ; Number of packets of atoms in the simulation, do not exceed 32766 = 2^15-1
 if keyword_set(Time_range_this_run) then Time_range=Time_range_this_run else $                      
 Time_range             = [0.,.166]                         ; When to start and stop releasing particles from the planet [End, Begin] days ago
-;                                                           ; A single element array represents a 1 sec 'pulse' of particles occuring [pulse_time] days ago
+                                                           ; A single element array represents a 1 sec 'pulse' of particles occuring [pulse_time] days ago
 timestep               = 50.                               ; Time step in seconds from the RK4 integrator, use < = 50 s at Mercury 
+Step_Type              = 'Adaptive'                        ; Flavor of Runge-Kutta step to use: 'Fixed' or 'Adaptive', timestep is the initial guess for the later
 Plot_range             = 1600.                             ; for 'Above ecliptic' viewing only. Defines the plate scale, the spatial distance of each axis to be plotted in BODY RADII 
 Output_Size_In_Pixels  = [128., 128., 128.]                ; Number of pixels on the [x,y,z] axis of the plot window (keep them all the same for sanity)
 Center_in_frame        = [1./2., 1./2., 1./2.]             ; [x,y,z] position of Body center within the output field of view, [1./2., 1./2., 1./2.] = centered 
@@ -130,7 +131,7 @@ N_ticks                = 10.                               ; Number of tick mark
 tickstep               = 200.                              ; Axis tick step size in Body radii for the 'Above ecliptic' viewings  
 
 ;===========================================KEYWORDS=======================================================================
-Bounce                 = 0                                 ; Particles re-impacting the surface can bounce (=1) or stick (=0) 
+Bounce                 = 1                                 ; Particles re-impacting the surface can bounce (=1) or stick (=0) 
 Label_Phase            = 0                                 ; Display the body's phase angle as pixels? MAJOR ISSUE: Needs rotation to plane of sky. 
 Above_Ecliptic         = 0                                 ; Also writes an output image viewed from above the ecliptic plane with "Plot_range" field of view (longer run times)
           
@@ -241,10 +242,11 @@ Above_Ecliptic         = 0                                 ; Also writes an outp
       
     ; Integrate the equations of motion
       Print, 'Starting particle motion integration. . . '
-      RK4_integrate_adaptive, loc, bounce, ionizelife, atoms_per_packet, timestep
-      ; The loc array now contains final particle locations. Now to plot them taking into account shadowing and g-values
+      RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_packet, timestep, step_type
+      ; The "loc" array now contains final exosphere particle locations. 
+      ; The "reimpact_loc" contains locations of surface particles in the body-fixed / local time frame
 
-    ; Compute scattering rates for each packet
+    ; Compute scattering rates for each packet in the exosphere
       final_time = loc[9,*] - loc[8,*]
       CSPICE_SPKEZR, body, ephemeris_time - REFORM(final_time), 'J2000', 'NONE', 'Sun', sun_state, ltime
       sun_part_pos = loc[0:2,*] + sun_state[0:2,*]  ;Calculate the vectors from the sun to the particles    
@@ -255,7 +257,7 @@ Above_Ecliptic         = 0                                 ; Also writes an outp
               sun_part_pos[2,*]*sun_part_vel[2,*]) / r_sun
       gvalue, Line_data.line, Vrad * 1000., r_sun / 149597871., Line_data.wavelength, Line_data.intensity, g         
 
-      ; Adjust scattering rates by the illuminated fraction of the solar disc        
+      ; Adjust scattering rates by the illuminated fraction of the solar disc that each particle sees       
         airborn_packets = where(loc[4,*] ne 0., number_airborn, /NULL)
         penum = illumination(fltarr( number_airborn ), loc[0,airborn_packets], $
                              loc[1,airborn_packets], loc[2,airborn_packets]) 
@@ -263,7 +265,7 @@ Above_Ecliptic         = 0                                 ; Also writes an outp
 
     ; Write the image for that loop.    
       output_display, loc, g, atoms_per_packet, Image_type, loop_number, 1 
-  
+
     ; Build the images in both Rayleighs and Column Density by co-adding 
       restore, strcompress(directory+'Model_Image_R'+string(loop_number)+'.sav')
       restore, strcompress(directory+'Model_Image_CD'+string(loop_number)+'.sav')

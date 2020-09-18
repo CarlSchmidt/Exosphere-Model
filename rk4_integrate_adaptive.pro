@@ -149,7 +149,7 @@ function RK_4_step, loc, dt, ionizelife
   return, loc
 end
 
-pro RK4_integrate_adaptive, loc, bounce, ionizelife, atoms_per_packet, timestep
+pro RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_packet, timestep, step_type
   COMMON Model_shared, Body, Ephemeris_time, Seed, Directory, Particle_data, Line_data, Debug
   COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in_frame, viewpoint, FOV, N_ticks, Tickstep, Observatory, Above_Ecliptic, Boresight_Pixel, Aperture_Corners
   COMMON Gravity, GM_Body, GM_Sun, GM_Parent
@@ -199,7 +199,7 @@ pro RK4_integrate_adaptive, loc, bounce, ionizelife, atoms_per_packet, timestep
       GM_Parent = -GM_Parent[0]  ;negate (attractive)
     endif
 
-  ; If we're dealing with surface interactions we'll also need a surface temperature model, run it if it hasn't been run already
+  ; Deal with surface interactions. If so we'll also need a surface temperature model, run it if it hasn't been run already
     IF KEYWORD_SET(bounce) THEN BEGIN                             
       Thermal_model_exists    = File_search(Directory+body+'_Temperature.nc')
       if Thermal_model_exists eq Directory+body+'_Temperature.nc' then begin
@@ -214,31 +214,29 @@ pro RK4_integrate_adaptive, loc, bounce, ionizelife, atoms_per_packet, timestep
         ncdf_varget, ID, orbital_lonID, orbital_lon ; orbital Longitude, or in Mercury's case, true anomaly angle (zero eq Jovian Noon)
         ncdf_close, ID
       endif else Surface_Temperature, Directory, Body, Time, Temperature_map, Silent = Silent ; Fix needed, the time input here might need to be an orbital longitude/TAA of 0.0 (unsure of this) 
+      reimpact_loc = []                              ; see definitions in reimpacts array within while loop below
     endif  
 
-  ; Tolerances for the adaptive RK step                 
-    ;tolspace = platescale^(-1.)                  ; Spatial tolerence is the size of a pixel in units of body radii
-    ;tolvelo  = tolspace / t                      ; vector: the more time remaining, the smaller the v error has to be
-    ;time_error = body_radius * tolspace / 100.   ; time error allowed - time for 100 km/s particle to travel tolspace
-    
+  ; Tolerances for the adaptive RK step      
+    ; these could be adaptive themselves i.e.
+    ; tolspace = platescale^(-1.)                  ; Spatial tolerence is the size of a pixel in units of body radii
+    ; tolvelo  = tolspace / t                      ; vector: the more time remaining, the smaller the v error has to be
+    ; time_error = body_radius * tolspace / 100.   ; time error allowed - time for 100 km/s particle to travel tolspace
+    ; Keep it simple here:    
     tolspace   = 25.   ; km   SPATIAL TOLERANCE PER STEP
     tolvel     = 0.25  ; km/s VELOCITY TOLERANCE PER STEP  
     time_error = 10.   ; s NOT ACTUALLY UTILIZED (ACCEPT FOR THE FINAL LOOP TIMEOUT)
 
-  sl         = size(loc)
-  h          = float(replicate(timestep, sl[2]))  ; Initial guess for a time step size (seconds)
-  safety     = .9
-  shrink     = -.25
-  grow       = -.2
-  fcor       = 1./15.   ;fifth-order correction factor
-  done  = 0
-  count = 0
-  hold  = h
-
-  ; Set which flavor of Runge-Kutta step to use
-  ; Step_Type = 'Fixed'
-    Step_Type = 'Adaptive'
-
+  sl     = size(loc)
+  h      = float(replicate(timestep, sl[2]))  ; Initial guess for a time step size (seconds)
+  safety = .9
+  shrink = -.25
+  grow   = -.2
+  fcor   = 1./15.   ;fifth-order correction factor
+  done   = 0
+  count  = 0
+  hold   = h
+  
   max_integration = max(t)
 
   ;***********************************************
@@ -339,17 +337,22 @@ pro RK4_integrate_adaptive, loc, bounce, ionizelife, atoms_per_packet, timestep
           ; transform landing coordinates to body-fixed cartesian and then to planetographic coordinates   
             cspice_sxform, 'J2000', 'IAU_' + body, ephemeris_time - t[Hit_Body], J2000_to_body_fixed_xform 
             
-            BF_State     = dblarr(6, N_reimpacts) ;needed? 
-            TAA_index    = fltarr(N_reimpacts)
-            solar_lambda = fltarr(N_reimpacts)
-            solar_mu     = fltarr(N_reimpacts)
-
+            BF_State       = Dblarr(6, N_reimpacts)         ; needed? 
+            reimpacts      = Fltarr(6, N_reimpacts)         ; info on the reimpacting particles
+                                                            ; 0 = solar longitude          (-180 to 180)
+                                                            ; 1 = solar latitude           (-90 to 90)
+                                                            ; 2 = planetographic longitude (0 to 360)
+                                                            ; 3 = planetographic latitude  (-90 to -90)      
+                                                            ; 4 = orbital longitude / TAA  (0 to 360)
+                                                            ; 5 = fractional content       (0 to 1)
+            reimpacts[5,*] = loc[4,moretogo[Hit_Body]] * atoms_per_packet ; log the number of particles that reimpacted the surface over this timestep
+            
             for i = 0, N_reimpacts - 1 do begin
-              BF_State[*,i] = transpose( J2000_to_body_fixed_xform[*,*,i] ) # loc[0:5, moretogo[Hit_Body[i]]]             ; Body-Fixed cartesian states
-              cspice_recpgr, Body, BF_State[0:2,i], Body_radius[0], flat, p_lon, p_lat, p_alt                             ; Particle coords planetographic longitude definition
+              BF_State[*,i] = transpose( J2000_to_body_fixed_xform[*,*,i] ) # loc[0:5, moretogo[Hit_Body[i]]]            ; Body-Fixed cartesian states
+              cspice_recpgr, Body, BF_State[0:2,i], Body_radius[0], flat, p_lon, p_lat, p_alt                            ; Particle coords planetographic longitude definition
               
               cspice_subslr, 'Near point: ellipsoid', body, ephemeris_time - t[Hit_Body[i]], 'IAU_'+body, 'none', viewpoint, sub_solar_point_body_fixed, trgepc, srfvec 
-              cspice_recpgr, Body, sub_solar_point_body_fixed, Body_radius[0], flat, subslr_lon, subslr_lat, subslr_alt   ; Sub-solar point coords planetographic longitude definition
+              cspice_recpgr, Body, sub_solar_point_body_fixed, Body_radius[0], flat, subslr_lon, subslr_lat, subslr_alt  ; Sub-solar point coords planetographic longitude definition
       
               ; Find Mercury's True Anomaly Angle
                 cspice_spkezr, Body, ephemeris_time - t[Hit_Body[i]], 'J2000', 'LT+S', 'Sun', state, ltime
@@ -358,30 +361,39 @@ pro RK4_integrate_adaptive, loc, bounce, ionizelife, atoms_per_packet, timestep
                 MA  = ELTS[5]                                                             ; Mean Anomaly radians
                 ; Now get true anomaly from Mean anomaly and Eccentricity, see https://en.wikipedia.org/wiki/True_anomaly
                 ; Roy, A.E. (1988). Orbital Motion (1 ed.). Bristol, UK; Philadelphia, PA: A. Hilger. ISBN 0852743602.
-                TAA =  MA + (2.*ecc - 0.25*ecc^3)*sin(MA) + 1.25*(ecc^2)*sin(2.*MA)+ (13./12.)*(ecc^3)*sin(3.*MA)
-                True_Anomaly = TAA*!radeg ; True Anomaly in degrees
-                ;print, 'Mercury''s True Anomaly Angle:', True_Anomaly
+                True_Anomaly = !radeg * ( MA + (2.*ecc - 0.25*ecc^3)*sin(MA) + 1.25*(ecc^2)*sin(2.*MA)+ (13./12.)*(ecc^3)*sin(3.*MA) ) ; True Anomaly Angle in degrees
                 
-                solar_lon = (P_lon - subslr_lon)*!radeg
+                solar_lat = (P_lat - subslr_lat)*!radeg
+                solar_lon = (P_lon - subslr_lon)*!radeg 
                 if solar_lon lt -180. then solar_lon = solar_lon + 360.
                 if solar_lon gt 180. then solar_lon = solar_lon - 360.
-                          
-                TAA_index[i]      = interpol(findgen(n_elements(orbital_lon)), orbital_lon, True_Anomaly)   
-                solar_mu[i]       = interpol(findgen(n_elements(thermal_lat)), thermal_lat, (P_lat - subslr_lat)*!radeg - 90.)    ; Index of re-impacted particle's latitude from the sub-solar point
-                solar_lambda[i]   = interpol(findgen(n_elements(thermal_lon)), thermal_lon, solar_lon)                             ; re-impacted particle's longitude from the sub-solar point      
-                
-                ; Hack, I've not checked the E/W longitude convention in the thermal maps agrees with planetograph E/W. Murphy says it's wrong
+
+                reimpacts[0:1,i]  = [solar_lon, solar_lat]
+                reimpacts[2:3,i]  = [P_lon, P_lat] * !radeg
+                reimpacts[4,i]    = True_Anomaly 
               endfor
 
-              Local_surface_temps = interpolate(Temperature, solar_lambda, solar_mu, TAA_index)
-              Sticking_prob       = sticking_coefficient(particle_data.name, Local_surface_temps) ; 0 to 1 probabilities for sticking, from experimental data on re-adsorption vs. temperture             
-              dice                = randomu(seed, N_reimpacts)                                    ; Monte-Carlo method, roll the dice. . . 
-              stick               = where(dice lt Sticking_prob, N_stuck, complement = bounce, Ncomplement = N_bounced, /Null) ; bounce or stick ? 
+              ; Hack: I've not checked the E/W longitude convention in the thermal maps agrees with planetograph E/W. Murphy says it's wrong
+
+              ; "Temperature" 3D thermal maps produced by surface_temperature.pro have dimensions [longitude, latitude, orbital longitude or TAA]
+              ; Its number of elements in the thermal maps depends on the resolution though 
+              ; Interpolate to find the fractional indices of the , then interpolate within the thermal map's 3D datacube
+                solar_lambda        = interpol(findgen(n_elements(thermal_lon)), thermal_lon, reimpacts[0,*])  ; Index of re-impacted particle's longitude from the sub-solar point
+                solar_mu            = interpol(findgen(n_elements(thermal_lat)), thermal_lat, reimpacts[1,*])  ; Index of re-impacted particle's latitude from the sub-solar point
+                TAA_index           = interpol(findgen(n_elements(orbital_lon)), orbital_lon, reimpacts[4,*])  ; Index of the instantaneous orbital longitude / TAA at the re-impact time
+                Local_surface_temps = interpolate(Temperature, solar_lambda, solar_mu, TAA_index)
+             
+              ; Use the local surface temperatures to find which particle bounce/stick with a Monte-Carlo technique 
+                Sticking_prob       = sticking_coefficient(particle_data.name, Local_surface_temps) ; 0 to 1 probabilities for sticking, from experimental data on re-adsorption vs. temperture             
+                dice                = randomu(seed, N_reimpacts)                                    ; Monte-Carlo method, roll the dice. . . 
+                stick               = where(dice lt Sticking_prob, N_stuck, complement = bounce, Ncomplement = N_bounced, /Null) ; bounce or stick ? 
 
               ; For those particles that stick...
-                loc[4,moretogo[Hit_Body[stick]]] = 0.                                             ; set the fractional content of packets that hit the surface to zero
-                loc[8,moretogo[Hit_Body[stick]]] = loc[9,moretogo[Hit_Body[stick]]]               ; set the time left in the integration to zero (because t = loc(9,*)-loc(8,*))
-                ; <<<< Future development: use this to map the contribution to the surface reservoir >>>>
+                loc[4,moretogo[Hit_Body[stick]]] = 0.                                               ; set the fractional content of packets that hit the surface to zero
+                loc[8,moretogo[Hit_Body[stick]]] = loc[9,moretogo[Hit_Body[stick]]]                 ; set the time left in the integration to zero (because t = loc(9,*)-loc(8,*))
+
+                ; concatenate the contribution to the surface reservoir during this time step 
+                  reimpact_loc = [ [reimpact_loc], [reimpacts[*,stick]] ]
 
               ; For those particles that bounce... 
                 if N_bounced gt 0 then begin
