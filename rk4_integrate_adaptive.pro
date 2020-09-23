@@ -369,7 +369,7 @@ pro RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_pac
                 if solar_lon gt 180. then solar_lon = solar_lon - 360.
 
                 reimpacts[0:1,i]  = [solar_lon, solar_lat]
-                reimpacts[2:3,i]  = [P_lon, P_lat] * !radeg
+                reimpacts[2:3,i]  = [P_lon, P_lat] * cspice_DPR()
                 reimpacts[4,i]    = True_Anomaly 
               endfor
 
@@ -386,29 +386,29 @@ pro RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_pac
               ; Use the local surface temperatures to find which particle bounce/stick with a Monte-Carlo technique 
                 Sticking_prob       = sticking_coefficient(particle_data.name, Local_surface_temps) ; 0 to 1 probabilities for sticking, from experimental data on re-adsorption vs. temperture             
                 dice                = randomu(seed, N_reimpacts)                                    ; Monte-Carlo method, roll the dice. . . 
-                stick               = where(dice lt Sticking_prob, N_stuck, complement = bounce, Ncomplement = N_bounced, /Null) ; bounce or stick ? 
+                stick_ind           = where(dice lt Sticking_prob, N_stuck, complement = bounce_ind, Ncomplement = N_bounced, /Null) ; bounce or stick ? 
 
               ; For those particles that stick...
-                loc[4,moretogo[Hit_Body[stick]]] = 0.                                               ; set the fractional content of packets that hit the surface to zero
-                loc[8,moretogo[Hit_Body[stick]]] = loc[9,moretogo[Hit_Body[stick]]]                 ; set the time left in the integration to zero (because t = loc(9,*)-loc(8,*))
+                loc[4,moretogo[Hit_Body[stick_ind]]] = 0.                                               ; set the fractional content of packets that hit the surface to zero
+                loc[8,moretogo[Hit_Body[stick_ind]]] = loc[9,moretogo[Hit_Body[stick_ind]]]                 ; set the time left in the integration to zero (because t = loc(9,*)-loc(8,*))
 
                 ; concatenate the contribution to the surface reservoir during this time step 
-                  reimpact_loc = [ [reimpact_loc], [reimpacts[*,stick]] ]
+                  reimpact_loc = [ [reimpact_loc], [reimpacts[*,stick_ind]] ]
 
               ; For those particles that bounce... 
                 if N_bounced gt 0 then begin
                 
-                  ; indices of particles within loc that we want to bounce
-                    bounce_ind = moretogo[Hit_Body[bounce]]
+                  ; indices within "loc" of particles within loc that we want to bounce
+                    bounce_indicies = moretogo[Hit_Body[bounce_ind]]
                   
                   ; Reset the particle coordinates to just above the surface
-                    loc[0:2, bounce_ind] = loc[0:2, bounce_ind] * 1.00001 * $
-                                           body_radius[0] / rebin(loc[3, bounce_ind], 3, N_bounced)
+                    loc[0:2, bounce_indicies] = loc[0:2, bounce_indicies] * 1.00001 * $
+                                           body_radius[0] / rebin(loc[3, bounce_indicies], 3, N_bounced)
                                                            
                   ; Reset the particle velocities, with optional thermal acccomodation to the local surface temp     
                     thermal_accomodation_coeff = 0.0  ;0.62 ;Hunten et al. 1988
                     V_thermal = sqrt(2.*1.3806503e-23*Local_surface_temps/particle_data.mass) * 1.e-3        ; surface thermal speed, in km/s
-                    V_initial = sqrt(loc[5, bounce_ind]^2+loc[6, bounce_ind]^2+loc[7, bounce_ind]^2)         ; re-impact velocity
+                    V_initial = sqrt(loc[5, bounce_indicies]^2+loc[6, bounce_indicies]^2+loc[7, bounce_indicies]^2)         ; re-impact velocity
                     V_final = thermal_accomodation_coeff*V_thermal+(1.-thermal_accomodation_coeff)*V_initial ; give it a new speed in km/sec WRT the surface                                    
   
                   ; Assign new trajectories, bounce trajectories are weighted a COSINE DEPENDENCE WRT the surface normal
@@ -433,28 +433,28 @@ pro RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_pac
                       scrambled_indicies = SORT(randomNumbers)
                       theta[indgen(N_bounced)] = theta[scrambled_indicies]
                      
-                    loc[5,bounce_ind] = sin(theta)*cos(phi)  ; the x-direction
-                    loc[6,bounce_ind] = sin(theta)*sin(phi)  ; the y-direction
-                    loc[7,bounce_ind] = cos(theta)           ; the z-direction
+                    loc[5,bounce_indicies] = sin(theta)*cos(phi)  ; the x-direction
+                    loc[6,bounce_indicies] = sin(theta)*sin(phi)  ; the y-direction
+                    loc[7,bounce_indicies] = cos(theta)           ; the z-direction
                     z_axis = [0., 0., 1.]           ; define the z-axis in vector space.
                    
                     ; Rotate to align the z axis in the velocity vector distribution to the surface normal vectors. . .
                       for q = 0, N_bounced-1 do begin
-                        Surface_Normal              = loc[0:2,bounce_ind[q]] ; Vectors normal to the local surface.
-                        Velocity_Vector_WRT_Surface = loc[5:7,bounce_ind[q]] ; Velocity unit vectors in an arbitary Z is up frame, we want to rotation these into a Surface normal is up frame
+                        Surface_Normal              = loc[0:2,bounce_indicies[q]] ; Vectors normal to the local surface.
+                        Velocity_Vector_WRT_Surface = loc[5:7,bounce_indicies[q]] ; Velocity unit vectors in an arbitary Z is up frame, we want to rotation these into a Surface normal is up frame
                         cspice_vcrss, surface_normal, z_axis, surface_normal_cross_z           ; the cross product of the two. This resultant vector is the axis of rotation
                         Suface_Normal_Angle_WRT_Z = cspice_vsep(surface_normal,z_axis)         ; the angle between z axis and the surface vector where the particle is released.
   
                         ; rotate the velocity vector so that the z axis (which it was generated WRT) is now the surface normal.
                           cspice_vrotv, Velocity_vector_WRT_Surface, surface_normal_cross_z, -(Suface_Normal_Angle_WRT_Z), Velocity_vector_WRT_Absolute
-                          loc[5:7,bounce_ind[q]] = Velocity_vector_WRT_Absolute * V_final[q]   ; write the vector back into the loc array, and scale it velocity                  
+                          loc[5:7,bounce_indicies[q]] = Velocity_vector_WRT_Absolute * V_final[q]   ; write the vector back into the loc array, and scale it velocity                  
                       endfor
                endif ; N_bounced gt 0
-               print, string(N_reimpacts, format = '(I6)'), ' particles collided with the surface,', string(N_bounced, format = '(I6)'), ' bounced with zero thermal accomatation'
+               print, string(N_reimpacts, format = '(I6)'),' particles collided with the surface,', string(N_bounced, format = '(I6)'),' bounced (T-depen Sticking & Thermal Accommodation = 0.0)'
         ENDIF ELSE BEGIN                                              ; bounce keyword is not set
           loc[4,moretogo[Hit_Body]] = 0.                              ; set the fractional content of packets that hit the surface to zero
           loc[8,moretogo[Hit_Body]] = loc[9,moretogo[Hit_Body]]       ; set the time left in the integration to zero (because t = loc(9,*)-loc(8,*))
-          print, string(N_reimpacts, format = '(I6)'), ' particles collided with the surface (bounce keyword not set at input)'
+          print, string(N_reimpacts, format = '(I6)'),' particles collided with the surface (bounce keyword not set at input)'
         ENDELSE    
       endif
 

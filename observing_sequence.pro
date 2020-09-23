@@ -7,12 +7,12 @@ Pro Observing_Sequence, Meteor_impact_UTC = Meteor_impact_UTC, Plume_Temperature
 
 ; Current Run
       Meteor_impact_UTC             = '2011-08-04 02:20:00'       ; time of the impact
-      Plume_Temperature             = '20000K'                     ; temperature of the impact vapour
-      Surface_distribution = 'Point_[0, -60]'                    ; Location of the impactor
+      Plume_Temperature             = '20000K'                    ; temperature of the impact vapour
+      Surface_distribution = 'Point_[30, -30]'                    ; Location of the impactor
       loop_times                    = 10.                         ; Bear minimum for any reasonable S/N
       Na_Lofted                     = 6.e27                       ; seems like a lot
       Mg_Lofted                     = 4.*Na_lofted                ; seems like a lot
-      Brightness_multiplier_Na      = 2.
+      Brightness_multiplier_Na      = 1.6
       Brightness_multiplier_Mg      = 0.6
 
 COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in_frame, viewpoint, FOV, N_ticks, Tickstep, Observatory, Above_Ecliptic, Boresight_Pixel, Aperture_Corners
@@ -21,9 +21,9 @@ COMMON Model_shared, Body, Ephemeris_time, Seed, Directory, Particle_data, Line_
 ;key_frames_Na = [5,6,15,20,26,45,48,51] ; the 7 most interesting frames for Na
 ;key_frames_Mg = [2,11,18,21,33,35]      ; the 5 most interesting frames for Mg
 
-key_frames_Na = [5,6,15,20,26,45,48,51,indgen(35)*2]
+key_frames_Na = [5,6,15,20,26,45,48,51,indgen(37)*2]
 key_frames_Na = key_frames_Na[UNIQ(key_frames_Na, SORT(key_frames_Na))]
-key_frames_Mg = [2,11,18,21,33,35,indgen(22)*2]
+key_frames_Mg = [2,11,18,21,33,35,indgen(24)*2]
 key_frames_Mg = key_frames_Mg[UNIQ(key_frames_Mg, SORT(key_frames_Mg))]
 
 ;key_frames_Na = [15,45] ; test
@@ -119,7 +119,7 @@ key_frames_Mg = key_frames_Mg[UNIQ(key_frames_Mg, SORT(key_frames_Mg))]
     junk = where(key_frames_Na eq i, count, /NULL)
     if count eq 0 then continue
     if days_since_meteor_impact[i] lt 0. then continue ; Can't model an event that hasn't happened yet    
-    if FILE_TEST('C:\IDL\Generic Model V2\read_write\'+write_directory+'\Na_Meteor_frame_'+strcompress(string(i), /remove_all)+'.fit') then continue ; skip if we've done this before
+    ;if FILE_TEST('C:\IDL\Generic Model V2\read_write\'+write_directory+'\Na_Meteor_frame_'+strcompress(string(i), /remove_all)+'.fit') then continue ; skip if we've done this before
     
     Generic_Model, Time_range_this_run = days_since_meteor_impact[i], Output_title_this_run = write_directory + '\Na_Meteor_frame_'+strcompress(string(i), /remove_all), $
                    test_particle_this_run = 'Na', Line_this_run = 'Na-D', UTC_this_run = Na_UTC_string[i], $
@@ -133,7 +133,7 @@ key_frames_Mg = key_frames_Mg[UNIQ(key_frames_Mg, SORT(key_frames_Mg))]
     junk = where(key_frames_Mg eq i, count, /NULL)
     if count eq 0 then continue
     if days_since_meteor_impact[i] lt 0. then continue ; Can't model an event that hasn't happened yet
-    if FILE_TEST('C:\IDL\Generic Model V2\read_write\'+write_directory+'\Mg_Meteor_frame_'+strcompress(string(i), /remove_all)+'.fit') then continue ; skip if we've done this before
+    ;if FILE_TEST('C:\IDL\Generic Model V2\read_write\'+write_directory+'\Mg_Meteor_frame_'+strcompress(string(i), /remove_all)+'.fit') then continue ; skip if we've done this before
 
     Generic_Model, Time_range_this_run = days_since_meteor_impact[i], Output_title_this_run = write_directory + '\Mg_Meteor_frame_'+strcompress(string(i), /remove_all), $
                    test_particle_this_run = 'Mg', Line_this_run = 'Mg-2853',  UTC_this_run = Mg_UTC_string[i], $

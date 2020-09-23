@@ -11,6 +11,11 @@ FUNCTION STICKING_COEFFICIENT, species, temperature
                       [249.62561518753697, 0.49915163106913685],$
                       [300.20097344227315, 0.3762222839352791],$
                       [500.10742944005153, 0.20110791177631282]]
+      'Mg': S_vs_T = [[99.89465859571243, 1.0028008911736639],$   ; HACK HACK!!! ASSUME MG BOUNCES LIKE NA, NOT AT ALL A JUSTIFIED ASSUMPTION HACK HACK!!! 
+                      [249.62561518753697, 0.49915163106913685],$
+                      [300.20097344227315, 0.3762222839352791],$
+                      [500.10742944005153, 0.20110791177631282]]                
+                      
        Else: S_vs_T = [[10., 1.],$                                ; For other species I'm unsure, easiest to effectively switch off bouncing
                       [1000., 1.],$
                       [10000., 1.]]            

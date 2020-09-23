@@ -1,4 +1,4 @@
-pro output_display, loc, g, atoms_per_packet, Image_type, loop_number, part, Label_North = Label_North, Label_phase = Label_phase, $
+pro output_display, loc, g, atoms_per_packet, Image_type, loop_number, part, reimpact_loc = reimpact_loc, Label_North = Label_North, Label_phase = Label_phase, $
     Label_time = Label_time 
 
 ; REVISION HISTORY:
@@ -302,7 +302,7 @@ if Keyword_set(Above_ecliptic) then begin
         if body_resolved then here = where(disc_coordinates[0,*] eq fix(x) and disc_coordinates[1,*] eq fix(y), count) else count = 0.
         IF count NE 0 THEN on_disc=1. ELSE on_disc=0. 
         if (on_disc eq 1) and (loc_prime_above_ecliptic[2,i] lt 0.) then continue ;skip packets behind the disc      
-          if x ge 0 and x lt Output_Size_In_Pixels[0] and y ge 0 and y lt Output_Size_In_Pixels[1] then begin ;allocate x,y positions to pixels in the 2d Above_Ecliptic_Image_R  if within the plot window 
+          if x ge 0 and x lt Output_Size_In_Pixels[0] and y ge 0 and y lt Output_Size_In_Pixels[1] then begin ; allocate x, y positions to pixels in the 2d Above_Ecliptic_Image_R if within the plot window 
               ;output an image of the column density
               Above_Ecliptic_Image_CD[x,y] = Above_Ecliptic_Image_CD[x,y] + ((loc[4,i]) * (atoms_per_packet) * (platescale/1.e5)^2.)
               ;(fractional packet content) * (atoms per packet) * ((pixels/cm)^2)  
@@ -314,16 +314,24 @@ if Keyword_set(Above_ecliptic) then begin
       endfor
 endif ;----when next editing: try to combine this with the above regular loop!
 
+  if Keyword_set(reimpact_loc) then begin           ; allocate x, y positions in the deposition map
+    reimpacting_flux = fltarr(360, 180)             ; an image of the number of atoms that landed in every degree x degree [Planetographic W Longitude, Latitude]
+    X = reimpact_loc[2,*]
+    Y = reimpact_loc[3,*] + 90.      
+    reimpacting_flux[x,y] = reimpacting_flux[x,y] + reimpact_loc[5,*]  
+    save, reimpacting_flux, filename = strcompress(directory+'reimpacting_flux'+string(loop_number)+'.sav')
+  endif  
+
   ; ERROR HANDLING: Make sure no there are no infinite, NaN or negative pixels
     check_bad_pixels = WHERE( FINITE(Model_Image_R, /NAN), count_bad_pixels) 
     if count_bad_pixels gt 0 then stop
     if (min(Model_Image_R ) lt 0) OR (fix(n_elements(Model_Image_R)) ne fix(total(finite(Model_Image_R)))) then stop
   
-  ; Write the output frames to save files
-    save, Model_Image_R , filename = strcompress(directory+'Model_Image_R'+string(loop_number)+'.sav')
-    save, Model_Image_CD, filename = strcompress(directory+'Model_Image_CD'+string(loop_number)+'.sav')
-    if Keyword_set(Above_ecliptic) then save, Above_Ecliptic_Image_R , filename = strcompress(directory+'Above_Ecliptic_Image_R'+string(loop_number)+'.sav')
-    if Keyword_set(Above_ecliptic) then save, Above_Ecliptic_Image_CD, filename = strcompress(directory+'Above_Ecliptic_Image_CD'+string(loop_number)+'.sav')
+    ; Write the output frames to save files
+      save, Model_Image_R , filename = strcompress(directory+'Model_Image_R'+string(loop_number)+'.sav')
+      save, Model_Image_CD, filename = strcompress(directory+'Model_Image_CD'+string(loop_number)+'.sav')
+      if Keyword_set(Above_ecliptic) then save, Above_Ecliptic_Image_R , filename = strcompress(directory+'Above_Ecliptic_Image_R'+string(loop_number)+'.sav')
+      if Keyword_set(Above_ecliptic) then save, Above_Ecliptic_Image_CD, filename = strcompress(directory+'Above_Ecliptic_Image_CD'+string(loop_number)+'.sav')
 endif
 
 if part eq 2 then begin ;Once the model reaches it's last loop, plot the averaged output.

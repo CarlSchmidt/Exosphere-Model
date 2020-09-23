@@ -125,7 +125,7 @@ Upward_flux_at_exobase = 1.e26                             ; Meteor's total vapo
 Debug                  = 0                                 ; Set to 1 to output more detail at intermidiate steps.        
 exobase_height         = 0.d                               ; Exobase altitude above the surface, units of KM
 if keyword_set(Loop_times_this_run) then Loop_times=Loop_times_this_run else $ 
-Loop_times             = 1.                                ; How many loops the model should run, runs are stacked and averaged so this sets statistical noise  
+Loop_times             = 2                                 ; How many loops the model should run, runs are stacked and averaged so this sets statistical noise  
 FOV                    = 3600.*90.                         ; ARCSECONDS to a side. Field of View to display for output images that are in SKY COORDINATES  
 N_ticks                = 10.                               ; Number of tick marks in the axis of the sky coordinate image
 tickstep               = 200.                              ; Axis tick step size in Body radii for the 'Above ecliptic' viewings  
@@ -146,6 +146,7 @@ Above_Ecliptic         = 0                                 ; Also writes an outp
   
   ; How long did the model take to execute? Record the time at which the program starts
     start_time = systime(/seconds) 
+    CLEANPLOT, /silent
                                        
 ;  ; Create an IDL structure containing both the final model result the inputs used.
 ;  ; Note: if the structure below is appended or edited, IDL must (!) be reset (IDL> .reset) to avoid conflicting tag definitions
@@ -154,9 +155,10 @@ Above_Ecliptic         = 0                                 ; Also writes an outp
 ;                                            Speed_distribution, FOV, Output_Size_In_Pixels)
   
   ; Define some data cubes. Each loop will write an image to a layer of these. The they're averaged into final output images
-    initialize_array = fltarr(Output_Size_In_Pixels[0], Output_Size_In_Pixels[1], loop_times)  ; Reform needed as a work-around in case of loop_times = 1
-    Model_Cube_R     = reform(initialize_array, Output_Size_In_Pixels[0], Output_Size_In_Pixels[1], loop_times) ; stack/cube of the output images in Rayleighs
-    Model_Cube_CD    = reform(initialize_array, Output_Size_In_Pixels[0], Output_Size_In_Pixels[1], loop_times) ; stack/cube of the output images in cgs column density
+    initialize_array      = fltarr(Output_Size_In_Pixels[0], Output_Size_In_Pixels[1], loop_times)  ; Reform needed as a work-around in case of loop_times = 1
+    Model_Cube_R          = reform(initialize_array, Output_Size_In_Pixels[0], Output_Size_In_Pixels[1], loop_times) ; stack/cube of the output images in Rayleighs
+    Model_Cube_CD         = reform(initialize_array, Output_Size_In_Pixels[0], Output_Size_In_Pixels[1], loop_times) ; stack/cube of the output images in cgs column density
+    reimpacting_flux_Cube = fltarr(360, 180, loop_times)
     if keyword_set(Above_Ecliptic) then Above_Ecliptic_Cube_R  = reform(initialize_array, Output_Size_In_Pixels[0], Output_Size_In_Pixels[1], loop_times)
     if keyword_set(Above_Ecliptic) then Above_Ecliptic_Cube_CD = reform(initialize_array, Output_Size_In_Pixels[0], Output_Size_In_Pixels[1], loop_times)
 
@@ -261,11 +263,11 @@ Above_Ecliptic         = 0                                 ; Also writes an outp
         airborn_packets = where(loc[4,*] ne 0., number_airborn, /NULL)
         penum = illumination(fltarr( number_airborn ), loc[0,airborn_packets], $
                              loc[1,airborn_packets], loc[2,airborn_packets]) 
-        g[airborn_packets] = g[airborn_packets] * penum ; Only sunlit packets emit  
+        g[airborn_packets] = g[airborn_packets] * penum                         ; Only sunlit packets emit  
 
     ; Write the image for that loop.    
-      output_display, loc, g, atoms_per_packet, Image_type, loop_number, 1 
-
+      output_display, loc, g, atoms_per_packet, Image_type, loop_number, 1, reimpact_loc = reimpact_loc
+      
     ; Build the images in both Rayleighs and Column Density by co-adding 
       restore, strcompress(directory+'Model_Image_R'+string(loop_number)+'.sav')
       restore, strcompress(directory+'Model_Image_CD'+string(loop_number)+'.sav')
@@ -277,17 +279,64 @@ Above_Ecliptic         = 0                                 ; Also writes an outp
         Above_Ecliptic_Cube_R[*,*,Loop_number] = Above_Ecliptic_Image_R
         Above_Ecliptic_Cube_CD[*,*,Loop_number] = Above_Ecliptic_Image_CD   
       endif  
+      if keyword_set(bounce) then begin
+        restore, strcompress(directory+'reimpacting_flux'+string(loop_number)+'.sav')
+        reimpacting_flux_Cube[*,*,Loop_number] = reimpacting_flux
+      endif
       
     if N_elements(Time_range) gt 1 then save, loc, filename = strcompress(directory + Output_title + '_Loc_Array_'+string(loop_number)+'.sav') ; Save the big array for steady state release over some durations only 
+    
+    ; Write an array of exosphere's particle content in the body fixed frame:
+      cspice_sxform, 'J2000', Strcompress('IAU_'+body), ephemeris_time, xform
+      bstate = transpose( xform ) # Loc[[0,1,2,5,6,7],*]                        ; [x,y,z,vx,vy,vz] in the body fixed frame
+      ;g, loc[4,*] and atoms_per_packet are all needed to view things
+    
     print, 'Finished Particle Integration for Loop Number', Loop_number+1
   endfor
 
   ; Average (mean) the brightness and column density over the number of model runs in the above loop 
-    Model_Image_R  = mean(Model_Cube_R,  dimension = 3)
-    Model_Image_CD = mean(Model_Cube_CD, dimension = 3)
+    Model_Image_R        = mean(Model_Cube_R,  dimension = 3)
+    Model_Image_CD       = mean(Model_Cube_CD, dimension = 3)
+    Reimpacting_flux_Map = mean(reimpacting_flux_Cube, dimension = 3)
     if keyword_set(Above_Ecliptic) then Above_Ecliptic_Image_R  = mean(Above_Ecliptic_Cube_R,  dimension = 3)
     if keyword_set(Above_Ecliptic) then Above_Ecliptic_Image_CD = mean(Above_Ecliptic_Cube_CD, dimension = 3)
-  
+    
+  ; Turn the surface rempact map from atoms/pixel into atoms / ( cm^2 s )
+    Case n_elements(time_range) of
+      1: Reimpacting_flux_Map = Reimpacting_flux_Map / mintime           ; atoms / (pixel sec )
+      2: Reimpacting_flux_Map = Reimpacting_flux_Map / (maxtime-mintime) ; atoms / (pixel sec )
+    Endcase  
+
+    ;--------------------beta not ready for prime time-----------------------------------
+      loadct, 13
+      Reimpacting_flux_Map = rebin(Reimpacting_flux_Map, 36, 18)
+      map_size = size(Reimpacting_flux_Map, /dimensions)
+      MESH_OBJ, 4, Vertex_List, Polygon_List, REPLICATE(.5, map_size[0], map_size[1]), /closed
+      MESH_SA = MESH_SURFACEAREA( Vertex_List, Polygon_List )
+      ;lat_arr = (findgen(180) - 90 + .5) /!radeg
+      scale_to_cm = MESH_SA / (!pi * 4. * (body_radius*1.e5)^2)         ;Hack Hack this is almost certainly not a correct scaling factor from pixels to cm/2
+      
+      
+      
+      
+      
+      Reimpacting_flux_Map = Reimpacting_flux_Map * scale_to_cm
+      ; Transform the vertices:
+      T3D, /RESET
+      T3D, ROTATE=[0.0, 30.0, 0.0]
+      T3D, ROTATE=[0.0, 0.0, 40.0]
+      T3D, TRANSLATE=[0.5, 0.5, 0.5]
+      VERTEX_LIST = VERT_T3D(Vertex_List)
+      ; Create the window and view:
+      WINDOW, 0, XSIZE=800, YSIZE=600
+      CREATE_VIEW, WINX=800, WINY=600
+      ; Render the mesh:
+      SET_SHADING, LIGHT=[-0.5, 0.5, 2.0], REJECT=0
+      Reimpacting_Flux_Sphere = POLYSHADE(Vertex_List, Polygon_List, SHADES = bytscl(Reimpacting_flux_Map), /T3D)
+      cgimage, Reimpacting_Flux_Sphere, /keep_aspect
+      cgColorbar, minrange = 0., maxrange = max(Reimpacting_flux_Map), title = 'Surface Deposition', /right, /vertical, position = [0.97, 0.10, 0.99, 0.90] 
+    ;-----------------------end beta---------------------------------
+
   ; Make a FITS header and write in the settings above.
     MKHDR,    Header, fltarr(Output_Size_In_Pixels[0], Output_Size_In_Pixels[1])
     SXADDPAR, Header, 'UTC', UTC, ' UTC when image taken'
@@ -316,7 +365,7 @@ Above_Ecliptic         = 0                                 ; Also writes an outp
 
   ; Plot the final loop-averaged results 
     if keyword_set(Label_time) then Label_time = string(max(time_range)*24., format = '(F3.1)')
-    output_display, loc, g, atoms_per_packet, Image_type, loop_number, 2, label_phase = label_phase, Label_time = Label_time
+    output_display, loc, g, atoms_per_packet, Image_type, loop_number, 2, reimpact_loc = reimpact_loc, label_phase = label_phase, Label_time = Label_time
   
   ; Output_display can define spacecraft instrument pointing info, if there's any such information present
   ; add another fits binary table extention with this pointing info
@@ -324,22 +373,8 @@ Above_Ecliptic         = 0                                 ; Also writes an outp
       Pointing_info = {Pointing, Boresight_Pixel:Boresight_Pixel, Aperture_Corners:Aperture_Corners}
       mwrfits, Pointing_info, strcompress(directory+Output_title+'.fit') ; Append the pointing info into FITS extension 2
     endif  
-;      SXADDPAR, Header, 'BORE_X', Boresight_Pixel[0], 'Boresight X Nearest Pixel'
-;      SXADDPAR, Header, 'BORE_Y', Boresight_Pixel[0], 'Boresight Y Nearest Pixel'
-;    endif  
-;    if keyword_set(Aperture_Corners) then
-;      SXADDPAR, Header, 'APER1X', Aperture_Corners[0,0], 'Aperture Corner 1 X Position'
-;      SXADDPAR, Header, 'APER1Y', Aperture_Corners[1,0], 'Aperture Corner 1 Y Position'
-;      SXADDPAR, Header, 'APER2X', Aperture_Corners[0,1], 'Aperture Corner 2 X Position'
-;      SXADDPAR, Header, 'APER2Y', Aperture_Corners[1,1], 'Aperture Corner 2 Y Position'
-;      SXADDPAR, Header, 'APER1X', Aperture_Corners[0,2], 'Aperture Corner 3 X Position'
-;      SXADDPAR, Header, 'APER1Y', Aperture_Corners[1,2], 'Aperture Corner 3 Y Position'
-;      SXADDPAR, Header, 'APER1X', Aperture_Corners[0,3], 'Aperture Corner 4 X Position'
-;      SXADDPAR, Header, 'APER1Y', Aperture_Corners[1,3], 'Aperture Corner 4 Y Position'
-;      
-;    endif
-;    ;MODFITS, strcompress(directory+Output_title+'.fit'), 0, header ; Update header 
-    
+
+  CLEANPLOT, /silent
   print,'Done, Number of model loops =', Loop_number
   print,'Execution Time =',(systime(/seconds)-start_time)/3600.,'   hours'
   return

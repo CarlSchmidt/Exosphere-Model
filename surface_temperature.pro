@@ -13,7 +13,10 @@ Pro Surface_Temperature, Directory, Body, Time, Temperature_map, Silent = Silent
 ;
 ;DEPENDENCIES: SPICE installation, John Spencer's thermprojrs package
 ;
-;WRITTEN: C. Schmidt (LATMOS) 2016 
+;WRITTEN: C. Schmidt (LATMOS) 2016, 
+;
+;MODIFIED: 
+;       9/2020 Updated with a Geometry Finder to find the last zero orbital longitude.
 ;
 ;OPTIONS: Max_Temp keyord also outputs a map the max surface temperature, as a function of geographic longitude, only tested for Mercury.
 
@@ -39,6 +42,7 @@ body eq 'Europa': begin
     ice = 3 ; water ice sublimation cooling
     corrfac = 0.5
     min_dark_temp = 70. ;minimum global temperature, MUST be assumed where thermal balance breaks down near permenant shadow. The lowest nightime temp in Rathbun et al., 2010
+    if keyword_set(time) then time=time else time = '2015-FEB-23 12:01:30' ;time when Europa is mid Jovian eclipse in its orbit
     ;'2015-FEB-23 12:01:30'  ;time when Europa is mid Jovian eclipse in its orbit
     ;'2015 FEB 25 06:40:27'  ;time when Europa is at Jovian noon in its orbit. This is orbital longitude zero in Francois' convention
 end ; Europa
@@ -62,6 +66,7 @@ body eq 'Ganymede': begin
     heatflow = 0.;.05 * 1.e7 / 1.e4 ;W/m-2 upper limit from Spencer et al., 1999 citing G. W. Ojakangas and D. J. Stevenson, Icarus 81, 220 (1989), to ergs cm^-2 s-1 
     eclipse = [0., 0.] ;frequency of eclipse in fractional Ganymede days
     min_dark_temp = 80.
+    if keyword_set(time) then time=time else time = '2015-Feb-27 12:24' ;time when Ganymede is mid Jovian eclipse in its orbit
     ;'2015-Feb-27 12:24' ;time when Ganymede is mid Jovian eclipse in its orbit
     ;'2015 MAR 03 02:24' ;time when Ganymede is at Jovian noon in its orbit. This is orbital longitude zero in Francois' convention
 end ; Ganymede
@@ -78,6 +83,7 @@ body eq 'Moon': begin
     Thermal_inertia =  4.3e4 ;erg cm^-2 s^-1 K^-0.5, (Glundlach & Blum 2013) citing Wesselink (1948)
     heatflow = 0.
     min_dark_temp = 70. ;minimum global temperature, MUST be assumed where thermal balance breaks down near permenant shadow.
+    if keyword_set(time) then time=time else time = '2015-Sep-28 03:28' ;time when Moon is fully in Earth umbral eclipse in its orbit
     ;'2015-Sep-28 03:28' ;time when Moon is fully in Earth umbral eclipse in its orbit
     ;'2016 Sep 01 09:01' ;Solar eclipse / New moon. This is orbital longitude zero in Francois' convention 
 end ; Moon
@@ -94,37 +100,17 @@ body eq 'Mercury': begin
     min_dark_temp = 110. ;minimum global temperature, MUST be assumed where thermal balance breaks down near permenant shadow. 
     ntinc = 3000
     corrfac = 5
-    ;'Nov 13, 2006 21:33' ;A random perihelion, Francois' code is in TAA and uses this as zero
+    if keyword_set(time) then time=time else time = 'Nov 13, 2006 21:33' ;A random perihelion, Francois' code is in TAA and uses this as zero
     ;Notes: thermal inertias in Wang and IP are an order of magnitude higher than the Ksanfomality et al. 2007 review and some other estimates,
     ;       but these values do reproduce a thermal profile matching both Wang and IP, 2008 and Vasavada et al., 1999. They won't match Peplowski et al, 2012.
     ;       Suspect the maximum temperature figure in Peplowski is a misinterpretation of Vasavada et al. 1999 and is NOT correct!    
 end ; Mercury
 endcase ; constants
 
+
   ;**************************generate a map of temperature in latitude and longitude for the ephemeris time**************************************
   start = systime()
-    ;Load generic SPICE kernels
-     
-      ; Clean any lingering kernels out of memory here:
-        cspice_ktotal, 'all', count
-        Print, 'Deleting ', strtrim(string(count),2), ' old SPICE kernels from memory'
-        i=0
-        while i lt count do begin
-          cspice_kdata, 0, 'all', file, type, source, handle, found
-          cspice_unload, file
-          i=i+1
-        endwhile
-      
-      ; Load New Kernels
-        CSPICE_FURNSH, STRCOMPRESS('C:\SPICE\generic_kernels\lsk\naif0010.tls')         ; leap seconds kernel
-        CSPICE_FURNSH, STRCOMPRESS('C:\SPICE\generic_kernels\pck\pck00010.tpc')         ; Planet rotational states
-        CSPICE_FURNSH, STRCOMPRESS('C:\SPICE\Jupiter_System\jup309.bsp')   
-        CSPICE_FURNSH, STRCOMPRESS('C:\SPICE\generic_kernels\spk\planets\de421.bsp')    ; SPK (ephemeris kernel) for planets
-        CSPICE_FURNSH, STRCOMPRESS('C:\SPICE\generic_kernels\spk\satellites\sat319.bsp'); SPK (ephemeris kernel) for satellites 
-        cspice_ktotal, 'all', count
-        Print, 'Loaded ', strtrim(string(count),2), ' new Spice kernels'
-
-    Print, 'Generating Surface Thermal Map. . .'   
+  Print, 'Generating Surface Thermal Map. . .'   
 
     ;Set up the grid for temperature (Thermal balance tips the scale at SZA's  = 90 degrees in total darkness):
      ;sunlon = 0
@@ -202,19 +188,34 @@ endcase ; constants
       if body eq 'Mercury' then begin
         TAA = fltarr(n_elements(time_array_insol))
         Sub_Solar_Lon = fltarr(n_elements(time_array_insol))
-        cspice_spkezr, body, ephemeris_time, 'J2000', 'None', 'Sun', peri_state, ltime
+        ;cspice_spkezr, body, ephemeris_time, 'J2000', 'None', 'Sun', peri_state, ltime
+        
+        ;CSPICE_FURNSH, STRCOMPRESS(FILE_SEARCH(kernel_directory, 'Gravity.tpc'))  ; Solar Gravitational Constant
+        cspice_bodvrd, 'Sun', 'GM', 1, mu                                         ; The Keplerian GM of the Sun in units km^3/s^2
+
+        
         for j = 0, n_elements(TAA)-1 do begin ;for each time  
-          cspice_spkezr, body, time_array_insol[j], 'J2000', 'None', 'Sun', state, ltime
-          TAA[j] = cspice_vsep(state[0:2], peri_state[0:2]) * !radeg
-          theta  = cspice_vsep(state[0:2], state[3:5])
-          Vel = cos(theta) * norm(state[3:5]) ;scalar projection of the relative velocity along the line of sight from the Sun
-          if vel lt 0. then TAA[j] = 360. - TAA[j]
+        ;          cspice_spkezr, body, time_array_insol[j], 'J2000', 'None', 'Sun', state, ltime
+        ;          TAA[j] = cspice_vsep(state[0:2], peri_state[0:2]) * !radeg
+        ;          theta  = cspice_vsep(state[0:2], state[3:5])
+        ;          Vel = cos(theta) * norm(state[3:5]) ;scalar projection of the relative velocity along the line of sight from the Sun
+        ;          if vel lt 0. then TAA[j] = 360. - TAA[j]
+          
           cspice_subslr, 'Intercept: ellipsoid', body, time_array_insol[j], 'IAU_'+strcompress(body), 'None', 'Sun', sub_solar_point_planet_frame, et_minus_lt, body_WRT_Sun
           cspice_recpgr, body, sub_solar_point_planet_frame, radii[0], flat, lon, lat, alt
-          Sub_Solar_Lon[j] = lon*!radeg
+          Sub_Solar_Lon[j] = lon
+          
+          cspice_spkezr, Body, time_array_insol[j], 'J2000', 'LT+S', 'Sun', state, ltime
+          cspice_oscelt, state, time_array_insol[j], mu[0], elts                    ; Comupute osculating orbital elements
+          ecc = ELTS[1]                                                             ; Eccentricity
+          MA  = ELTS[5]                                                             ; Mean Anomaly radians                                               
+          ; Now get true anomaly from Mean anomaly and Eccentricity, see https://en.wikipedia.org/wiki/True_anomaly
+          ; Roy, A.E. (1988). Orbital Motion (1 ed.). Bristol, UK; Philadelphia, PA: A. Hilger. ISBN 0852743602.
+          TAA[j] = MA + (2.*ecc - 0.25*ecc^3)*sin(MA) + 1.25*(ecc^2)*sin(2.*MA)+ (13./12.)*(ecc^3)*sin(3.*MA)
+          True_Anomaly = TAA*cspice_dpr() ; True Anomaly in degrees
         endfor
-        print, 'Hack: best to use the real definition of planetary true anomaly angle, and arbitrary input times, or better yet a geometry finder for perihelion!' 
-        stop
+        TAA           = TAA * cspice_dpr()                                          ; Convert both into degrees
+        Sub_Solar_Lon = Sub_Solar_Lon * cspice_dpr() 
       endif 
 
     for i_lat = 0, N_elements(sunlat) - 1 do begin ;step through solar latitudes 
