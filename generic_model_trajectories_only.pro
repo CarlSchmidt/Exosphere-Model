@@ -102,7 +102,7 @@ pro generic_model_trajectories_only, Time_range_this_run = Time_range_this_run, 
   if keyword_set(Output_title_this_run) then Output_title=Output_title_this_run else $
     Output_title           = 'Test'                            ; Title of the model's output FITS and Postcript files
   ; FITS extension 1 contains the metadata with the input parameters.
-  Number_of_particles    = 100;long(2^15-1)                      ; Number of packets of atoms in the simulation, do not exceed 32766 = 2^15-1
+  Number_of_particles    = long(2^15-1)                      ; Number of packets of atoms in the simulation, do not exceed 32766 = 2^15-1
   if keyword_set(Time_range_this_run) then Time_range=Time_range_this_run else $
     Time_range             = [0.,.166]                         ; When to start and stop releasing particles from the planet [End, Begin] days ago
   ; A single element array represents a 1 sec 'pulse' of particles occuring [pulse_time] days ago
