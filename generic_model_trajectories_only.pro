@@ -1,6 +1,4 @@
-pro generic_model___trajectories_only_TC, $
-  $;inputs:
-  Time_range_this_run = Time_range_this_run, test_particle_this_run = test_particle_this_run, line_this_run = line_this_run, $
+pro generic_model_trajectories_only, Time_range_this_run = Time_range_this_run, test_particle_this_run = test_particle_this_run, line_this_run = line_this_run, $
   Observatory_this_run = Observatory_this_run, Output_title_this_run = Output_title_this_run, UTC_this_run = UTC_this_run, $
   Speed_Distribution_this_run = Speed_Distribution_this_run, Surface_Distribution_this_run = Surface_Distribution_this_run, Loop_times_this_run = Loop_times_this_run, $
   Upward_flux_at_exobase_this_run = Upward_flux_at_exobase_this_run
@@ -55,17 +53,17 @@ pro generic_model___trajectories_only_TC, $
   ;========================================COMMON BLOCKS===================================================================
 
   COMMON Model_shared, Body, Ephemeris_time, Seed, Directory, Particle_data, Line_data, Debug
-  COMMON Output_shared, viewpoint;needed for SPICE light time
+  COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in_frame, viewpoint, FOV, N_ticks, Tickstep, Observatory, Above_Ecliptic, Boresight_Pixel, Aperture_Corners
 
   ;===========================================INPUTS=======================================================================
-  if !VERSION.OS_FAMILY eq 'unix' then begin
-    directory          = '/Users/tica9197/Documents/GitHub/Exosphere-Model/read_write/' ; Directory where all other files are read from and written to
-    kernel_directory   = '/Users/tica9197/Documents/mercury/kernels/'                           ; Directory where the spice kernel files live
-  endif
-  if !VERSION.OS_FAMILY eq 'Windows' then begin
+  if !VERSION.OS_FAMILY eq ('unix' or 'MacOS') then begin    ; A simple way to differntiate my path from Tim's
+    directory          = '/Users/tica9197/Documents/mercury/Exosphere-Model/read_write/'
+    kernel_directory   = '/Users/tica9197/Documents/mercury/kernels/'
+  endif else begin
     directory          = 'C:\IDL\Generic Model V2\read_write\' ; Directory where all other files are read from and written to
     kernel_directory   = 'C:\SPICE\'                           ; Directory where the spice kernel files live
-  endif
+  endelse
+
   Body               = 'Mercury'                             ; e.g., 'Mercury', 'CHURYUMOV-GERASIMENKO', 'Moon'
   ;UTC                = 'Feb 26, 2017 07:00:00'              ; Universal coordinate time to be modeled, time when image taken.
   ;UTC                = '2020-Nov-13 23:20'                   ; Mercury Peak Na radiation pressure
@@ -73,7 +71,8 @@ pro generic_model___trajectories_only_TC, $
   ;UTC                = '2018-12-13T16:22:49'                ; Potassium conventional data from Haleakala
   ;UTC                = 'Apr 08, 2005 22:10:00'              ; Solar eclipse from McDonald
   if keyword_set(UTC_this_run) then UTC=UTC_this_run else $  ; Use the input specified by the caller, or...
-    UTC                 = '2011-Aug-04 02:08:37.43'           ; Tim's first datapoint UTC
+    UTC                 = '2011-Aug-04 02:08:37.43'            ; Tim's first datapoint UTC
+  viewpoint='MESSENGER' ;needed for load_spice.pro
 
   if keyword_set(test_particle_this_run) then test_particle = test_particle_this_run else $
     test_particle      = 'Na'                                  ; Species to model
@@ -99,14 +98,16 @@ pro generic_model___trajectories_only_TC, $
   ; Options: 'Global'            Everywhere uniform
   ;          'Dayside'           Uniform 2pi steradians, centered in sub-solar longitude [-90,90 lat]
   ;          'Point_[lon,lat]'   Specified W. Lon & Lat [degrees]
-  viewpoint =          'MESSENGER'                         
-
  
-  Number_of_particles    = long(2^15-1)                      ; Number of packets of atoms in the simulation, do not exceed 32766 = 2^15-1
+  if keyword_set(Output_title_this_run) then Output_title=Output_title_this_run else $
+    Output_title           = 'Test'                            ; Title of the model's output FITS and Postcript files
+  ; FITS extension 1 contains the metadata with the input parameters.
+  Number_of_particles    = 100;long(2^15-1)                      ; Number of packets of atoms in the simulation, do not exceed 32766 = 2^15-1
   if keyword_set(Time_range_this_run) then Time_range=Time_range_this_run else $
-    Time_range             = [0.,1.]                         ; When to start and stop releasing particles from the planet [End, Begin] days ago
-  ;                                                           ; A single element array represents a 1 sec 'pulse' of particles occuring [pulse_time] days ago
+    Time_range             = [0.,.166]                         ; When to start and stop releasing particles from the planet [End, Begin] days ago
+  ; A single element array represents a 1 sec 'pulse' of particles occuring [pulse_time] days ago
   timestep               = 50.                               ; Time step in seconds from the RK4 integrator, use < = 50 s at Mercury
+  Step_Type              = 'Adaptive'                        ; Flavor of Runge-Kutta step to use: 'Fixed' or 'Adaptive', timestep is the initial guess for the later
   Plot_range             = 1600.                             ; for 'Above ecliptic' viewing only. Defines the plate scale, the spatial distance of each axis to be plotted in BODY RADII
   Output_Size_In_Pixels  = [128., 128., 128.]                ; Number of pixels on the [x,y,z] axis of the plot window (keep them all the same for sanity)
   Center_in_frame        = [1./2., 1./2., 1./2.]             ; [x,y,z] position of Body center within the output field of view, [1./2., 1./2., 1./2.] = centered
@@ -117,15 +118,28 @@ pro generic_model___trajectories_only_TC, $
   Debug                  = 0                                 ; Set to 1 to output more detail at intermidiate steps.
   exobase_height         = 0.d                               ; Exobase altitude above the surface, units of KM
   if keyword_set(Loop_times_this_run) then Loop_times=Loop_times_this_run else $
-    Loop_times             = 1.                                ; How many loops the model should run, runs are stacked and averaged so this sets statistical noise
+    Loop_times             = 2                                 ; How many loops the model should run, runs are stacked and averaged so this sets statistical noise
+  FOV                    = 3600.*90.                         ; ARCSECONDS to a side. Field of View to display for output images that are in SKY COORDINATES
+  N_ticks                = 10.                               ; Number of tick marks in the axis of the sky coordinate image
+  tickstep               = 200.                              ; Axis tick step size in Body radii for the 'Above ecliptic' viewings
 
   ;===========================================KEYWORDS=======================================================================
-  Bounce                 = 0                                 ; Particles re-impacting the surface can bounce (=1) or stick (=0)
- 
+  Bounce                 = 1                                 ; Particles re-impacting the surface can bounce (=1) or stick (=0)
+  Label_Phase            = 0                                 ; Display the body's phase angle as pixels? MAJOR ISSUE: Needs rotation to plane of sky.
+  Above_Ecliptic         = 0                                 ; Also writes an output image viewed from above the ecliptic plane with "Plot_range" field of view (longer run times)
 
+  ;***********************************************OUTPUTS*************************************************
+  ;                         All outputs are saved to the read_write directory
+  ;
+  ; Model_Image_CD (loop_number).sav    = the file imgxy, the column density a single integration run.
+  ; Model_Image_R (loop_number).sav     = the file imgxy, the brightness a single integration run.
+  ; (output)_Column_Density.ps          = Postscript plot of the column density averaged over all integration runs
+  ; (output)_Emission.ps                = Postscript plot of the brightness averaged over all integration runs
+  ;*******************************************************************************************************
 
   ; How long did the model take to execute? Record the time at which the program starts
   start_time = systime(/seconds)
+  CLEANPLOT, /silent
 
   ;  ; Create an IDL structure containing both the final model result the inputs used.
   ;  ; Note: if the structure below is appended or edited, IDL must (!) be reset (IDL> .reset) to avoid conflicting tag definitions
@@ -190,23 +204,6 @@ pro generic_model___trajectories_only_TC, $
     release_rate = number_of_particles / duration                            ; release rate of particles into the model in particles per second
     atoms_per_packet = Upward_flux_at_exobase / release_rate                 ; (atoms/s)/(packets/s), the average packet content loc[4,*] must be unity initially.
 
-    ;    ; Calculate the Time-Dependent photo-ionization rate using the cross-section vs. wavelength UV fluxes come from SORCE and SEE
-    ;      Print, 'Loading incident solar flux. . . '
-    ;      Irrandiance, body, UTC, Time_range, directory, Flux, debug=debug   ;flux array is [wavelength in nm, solar photons s^(-1) cm^(-2)]
-    ;      Ionize_lambda = 1239.84187 / particle_data.Ionization_potential    ;convert ionization potential from eV to nm wavelength
-    ;      near = Min(Abs(float(Flux[0,*]) - Ionize_lambda), threshold)       ;only include wavelengths up to the ionization threshhold
-    ;      flux = flux[*, 0:threshold]
-    ;      interpolated_cross_sect = reform(INTERPOL(particle_data.photo_ionize_data[1,*], particle_data.photo_ionize_data[0,*], flux[0,*]))
-    ;      ionizelife = (total(interpolated_cross_sect * flux[1,*])) ^ (-1.)  ;the e-folding lifetime in s
-    ;      If keyword_set(debug) then begin                                   ;for direct comparison with Huebner et al., 1992
-    ;        print, strcompress('Photo-ionization rate (s^-1) =' + string(ionizelife ^ (-1.)) + ', Lifetime = ' + string(ionizelife) + ' s')
-    ;        Window, 0, Title = strcompress('Total ' + test_particle + ' Photolysis Rate = '+ string(ionizelife ^ (-1.)) + ' per second at ' + Body)
-    ;        plot, flux[0,*]*10., interpolated_cross_sect*flux[1,*]/10., xrange = [0, Ionize_lambda*10.], /ylog, ystyle = 1., $
-    ;          yrange = [1.e-14, 2.e-7], Xtitle = strcompress('Wavelength ' + cgSymbol("angstrom")), $
-    ;          ytitle = strcompress('Photolysis Rate Coefficient s!U-1!N ' + cgSymbol("angstrom") + '!U-1!N'), psym=10, $
-    ;          Color=cgColor('black'), Background=cgColor('white'), thick = 2., charthick = 1.6, charsize =1.6
-    ;      endif
-
     Case test_particle of ; Force photoionization lifetime in seconds (Huebner & Mukherjee, 2015) Above calculation Irradiance.pro yeilds longer lifetimes!
       'Na': ionizelife  = 1./7.26e-6  ; Quiet Sun, Huebner & Mukherjee, 2015
       'Mg': ionizelife  = 1./6.49e-7  ; Huebner & Mukherjee, 2015
@@ -215,11 +212,11 @@ pro generic_model___trajectories_only_TC, $
 
     ; Integrate the equations of motion
     Print, 'Starting particle motion integration. . . '
-    RK4_integrate_adaptive, loc, bounce, ionizelife, atoms_per_packet, timestep,kernel_directory
-    
-    ; The loc array now contains final particle locations. Now to plot them taking into account shadowing and g-values
+    RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_packet, timestep, step_type
+    ; The "loc" array now contains final exosphere particle locations.
+    ; The "reimpact_loc" contains locations of surface particles in the body-fixed / local time frame
 
-    ; Compute scattering rates for each packet
+    ; Compute scattering rates for each packet in the exosphere
     final_time = loc[9,*] - loc[8,*]
     CSPICE_SPKEZR, body, ephemeris_time - REFORM(final_time), 'J2000', 'NONE', 'Sun', sun_state, ltime
     sun_part_pos = loc[0:2,*] + sun_state[0:2,*]  ;Calculate the vectors from the sun to the particles
@@ -230,21 +227,31 @@ pro generic_model___trajectories_only_TC, $
       sun_part_pos[2,*]*sun_part_vel[2,*]) / r_sun
     gvalue, Line_data.line, Vrad * 1000., r_sun / 149597871., Line_data.wavelength, Line_data.intensity, g
 
-    ; Adjust scattering rates by the illuminated fraction of the solar disc
+    ; Adjust scattering rates by the illuminated fraction of the solar disc that each particle sees
     airborn_packets = where(loc[4,*] ne 0., number_airborn, /NULL)
     penum = illumination(fltarr( number_airborn ), loc[0,airborn_packets], $
       loc[1,airborn_packets], loc[2,airborn_packets])
-    g[airborn_packets] = g[airborn_packets] * penum ; Only sunlit packets emit
+    g[airborn_packets] = g[airborn_packets] * penum                         ; Only sunlit packets emit
 
 
+
+    if N_elements(Time_range) gt 1 then save, loc, filename = strcompress(directory + Output_title + '_Loc_Array_'+string(loop_number)+'.sav') ; Save the big array for steady state release over some durations only
+
+    ; Write an array of exosphere's particle content in the body fixed frame:
+    cspice_sxform, 'J2000', Strcompress('IAU_'+body), ephemeris_time, xform
+    bstate = transpose( xform ) # Loc[[0,1,2,5,6,7],*]                        ; [x,y,z,vx,vy,vz] in the body fixed frame
+    ;g, loc[4,*] and atoms_per_packet are all needed to view things
 
     print, 'Finished Particle Integration for Loop Number', Loop_number+1
   endfor
 
+
+  CLEANPLOT, /silent
   print,'Done, Number of model loops =', Loop_number
   print,'Execution Time =',(systime(/seconds)-start_time)/3600.,'   hours'
-  
-  scatter_plot_particle_locations,loc(0,[airborn_packets])/(Body_radius + exobase_height)  ,loc(1,[airborn_packets])/(Body_radius + exobase_height) 
-  stop
+
+
+  scatter_plot_particle_locations,bstate(0,[airborn_packets])/(Body_radius + exobase_height)  ,bstate(1,[airborn_packets])/(Body_radius + exobase_height)
+ stop
   return
 end

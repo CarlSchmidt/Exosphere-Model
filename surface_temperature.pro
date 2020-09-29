@@ -362,8 +362,8 @@ endcase ; constants
      cgplot, findgen(360)/15., temperature_map[180,90,*], ytitle = strcompress(body) + ' Equitorial Surface Temperature', xtitle = strcompress('UT ' + STRMID(utc_current, 0, 17) + ' - ' + body +' Local Time'), $
          xrange = [0,24], xstyle = 1. 
   DEVICE, /CLOSE
-  SET_PLOT, 'WIN
-
+  if !VERSION.OS_FAMILY eq ('unix' or 'MacOS') then SET_PLOT, 'X'
+  if !VERSION.OS_FAMILY eq ('Windows') then SET_PLOT, 'WIN'
 ;format for netcdf    
   if body ne 'Mercury' then begin
     Temperature_Map = congrid(Temperature_Map, 360, 180, 360)     
