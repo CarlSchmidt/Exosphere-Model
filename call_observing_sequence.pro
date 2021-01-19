@@ -1,8 +1,8 @@
 Pro Call_observing_sequence, Display_Correlation_Results = Display_Correlation_Results
 
 if keyword_set(Display_Correlation_Results) then begin
-  files = FILE_SEARCH('C:\IDL\Generic Model V2\read_write\Correlation_results\*_Hi-res.sav')
-  ;files = FILE_SEARCH('C:\IDL\Generic Model V2\read_write\Correlation_results\*_Round2.sav')
+  ;files = FILE_SEARCH('C:\IDL\Generic Model V2\read_write\Correlation_results\*_Round_4.sav')
+  files = FILE_SEARCH('C:\IDL\Generic Model V2\read_write\Correlation_results\*_Round_5.sav')
   ;files = FILE_SEARCH('C:\IDL\Generic Model V2\read_write\Correlation_results\*Round1.sav')
   Correlations_Na = fltarr(n_elements(files)) & Correlations_Mg = fltarr(n_elements(files))
   for l = 0, n_elements(files)-1 do begin
@@ -40,12 +40,12 @@ endif
 ;                              'Point_[300,-30]', 'Point_[330,-30]', 'Point_[0,-30]', 'Point_[30,-30]',$
 ;                              'Point_[300,0]',   'Point_[330,0]',   'Point_[0,0]',   'Point_[30,0]']      ; index by k
 ;
-Meteor_impact_UTC_array    = ['2011-08-04 02:10:00','2011-08-04 02:20:00']           ; index by i
-Plume_temperature_array    = ['20000K']                                               ; index by j
-loop_times_array           = [10]                                                      ; index by j
-Surface_distribution_array = ['Point_[0,-75]', 'Point_[15,-75]', 'Point_[30,-75]',$  ;lon, lat
-                              'Point_[0,-60]', 'Point_[15,-60]', 'Point_[30,-60]',$ 
-                              'Point_[0,-45]', 'Point_[15,-45]', 'Point_[30,-45]']      ; index by k
+;Meteor_impact_UTC_array    = ['2011-08-04 02:10:00','2011-08-04 02:20:00']           ; index by i
+;Plume_temperature_array    = ['20000K']                                               ; index by j
+;loop_times_array           = [10]                                                      ; index by j
+;Surface_distribution_array = ['Point_[0,-75]', 'Point_[15,-75]', 'Point_[30,-75]',$  ;lon, lat
+;                              'Point_[0,-60]', 'Point_[15,-60]', 'Point_[30,-60]',$ 
+;                              'Point_[0,-45]', 'Point_[15,-45]', 'Point_[30,-45]']      ; index by k
 
 ; =================================== End Post Bug Fix round 2 correlations ==================================================================
 
@@ -110,6 +110,30 @@ Surface_distribution_array = ['Point_[0,-75]', 'Point_[15,-75]', 'Point_[30,-75]
 ;                                'Point_[300,30]', 'Point_[330,30]','Point_[0,30]', 'Point_[30,30]', 'Point_[60,30]', 'Point_[90,30]', 'Point_[120,30]', $
 ;                                'Point_[300,60]', 'Point_[330,60]','Point_[0,60]', 'Point_[30,60]', 'Point_[60,60]', 'Point_[90,60]', 'Point_[120,60]']   ; index by k
 
+;------------------------------long hiatus possible bug fixes--------------------------------------------
+;; round 4 (runtime = 50 hours)
+;  Meteor_impact_UTC_array    = ['2011-08-04 01:35:00', '2011-08-04 01:45:00', $
+;                                '2011-08-04 01:55:00', '2011-08-04 02:05:00'] ; index by i
+;  Plume_temperature_array    = ['3500K']                                      ; index by j
+;  loop_times_array           = [40]                                           ; index by j
+;  Surface_distribution_array = ['Point_[0,0]', 'Point_[30,0]','Point_[60,0]', 'Point_[90,0]', 'Point_[120,0]', 'Point_[150,0]', 'Point_[180,0]', $
+;                                'Point_[210,0]', 'Point_[240,0]','Point_[270,0]', 'Point_[300,0]', 'Point_[330,0]']   ; index by k
+
+;; round 5 (runtime = ?? hours)
+;  Meteor_impact_UTC_array    = ['2011-08-04 02:10:00', $
+;                                '2011-08-04 02:15:00', '2011-08-04 02:20:00'] ; index by i
+;  Plume_temperature_array    = ['2000K', '3500K', '5000K']                    ; index by j
+;  loop_times_array           = [150, 80, 20]                                  ; index by j
+;  Surface_distribution_array = ['Point_[100,-15]', 'Point_[115,-15]', $
+;                                'Point_[100,0]', 'Point_[115,0]', $
+;                                'Point_[100,15]', 'Point_[115,15]' ]   ; index by k
+
+
+; round 6 (runtime = ??? Full resolution)
+Meteor_impact_UTC_array    = ['2011-08-04 02:15:00']                         ; index by i
+Plume_temperature_array    = ['3502K', '5000K']                              ; index by j
+loop_times_array           = [100, 80]                                       ; index by j
+Surface_distribution_array = ['Point_[100,0]', 'Point_[115,0]', 'Point_[100,15]', 'Point_[115,15]' ]   ; index by k
 
   for i = 0, N_elements(Meteor_impact_UTC_array)-1 do begin
     for j = 0, N_elements(Plume_temperature_array)-1 do begin

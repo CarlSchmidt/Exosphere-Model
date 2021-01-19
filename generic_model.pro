@@ -1,7 +1,7 @@
 pro generic_model, Time_range_this_run = Time_range_this_run, test_particle_this_run = test_particle_this_run, line_this_run = line_this_run, $
                    Observatory_this_run = Observatory_this_run, Output_title_this_run = Output_title_this_run, UTC_this_run = UTC_this_run, $
                    Speed_Distribution_this_run = Speed_Distribution_this_run, Surface_Distribution_this_run = Surface_Distribution_this_run, Loop_times_this_run = Loop_times_this_run, $
-                   Upward_flux_at_exobase_this_run = Upward_flux_at_exobase_this_run
+                   Upward_flux_at_exobase_this_run = Upward_flux_at_exobase_this_run, restore_aloft_filename = restore_aloft_filename
                    
 ; Carl Schmidt, BU, 2020
 ; Originally adapted from Jody Wilson, Boston University, 2007 
@@ -71,8 +71,9 @@ Body               = 'Mercury'                             ; e.g., 'Mercury', 'C
 ;UTC                = '2018-12-13T16:22:49'                ; Potassium conventional data from Haleakala
 ;UTC                = 'Apr 08, 2005 22:10:00'              ; Solar eclipse from McDonald
 if keyword_set(UTC_this_run) then UTC=UTC_this_run else $  ; Use the input specified by the caller, or...
-UTC                 = '2011-Aug-04 02:08:37.43'            ; Tim's first datapoint UTC
-
+;UTC                 = '2011-Mar-21 03:55'                 ; random viewing MESSENGER near southern pole
+UTC                 = '2011-Aug-04 02:08:37.43'  
+;UTC                 = '2011-Sep-09 07:30'                  ; Approx perihelion
 if keyword_set(test_particle_this_run) then test_particle = test_particle_this_run else $   
 test_particle      = 'Na'                                  ; Species to model
                                                            ; Options: 'Na' 
@@ -93,10 +94,11 @@ Speed_distribution = 'MBF_1200K'                           ; Set the speed distr
                                                            ;          'Step_[Vmin,Vmax]'  random velocities between Vmin
                                                            ;                                        and Vmax specified in km/s 
 if keyword_set(Surface_distribution_this_run) then Surface_distribution = Surface_distribution_this_run else $   
-Surface_distribution = 'Global' ;'Dayside'                           ; Set the surface distribution the particles will be released with
+Surface_distribution = 'Dayside'                           ; Set the surface distribution the particles will be released with
                                                            ; Options: 'Global'            Everywhere uniform
                                                            ;          'Dayside'           Uniform 2pi steradians, centered in sub-solar longitude [-90,90 lat]
                                                            ;          'Point_[lon,lat]'   Specified W. Lon & Lat [degrees]                 
+                                                           ;          'From_Map:'         TBD
 viewpoint =          'MESSENGER'                           ; How view the output:
                                                            ; Options: 'Insert Body Name' (SPICE recognized name, e.g. 'Earth' = Geocentric, or 'STEREO A')
                                                            ;          'Moon Spot'        (from Observatory looking anti-sunward) 
@@ -110,30 +112,34 @@ if keyword_set(Output_title_this_run) then Output_title=Output_title_this_run el
 Output_title           = 'Test'                            ; Title of the model's output FITS and Postcript files 
                                                            ; FITS extension 1 contains the metadata with the input parameters. 
 Number_of_particles    = long(2^15-1)                      ; Number of packets of atoms in the simulation, do not exceed 32766 = 2^15-1
-if keyword_set(Time_range_this_run) then Time_range=Time_range_this_run else $                      
-Time_range             = [0.,.166]                         ; When to start and stop releasing particles from the planet [End, Begin] days ago
+if keyword_set(Time_range_this_run) then Time_range=Time_range_this_run else $ 
+Time_range             = [0.,0.25]                 ; When to start and stop releasing particles from the planet [End, Begin] days ago e.g., [0.0, 0.5]                     
+;Time_range             = [6./24.,7./24.]                 ; When to start and stop releasing particles from the planet [End, Begin] days ago e.g., [0.0, 0.5]
                                                            ; A single element array represents a 1 sec 'pulse' of particles occuring [pulse_time] days ago
 timestep               = 50.                               ; Time step in seconds from the RK4 integrator, use < = 50 s at Mercury 
 Step_Type              = 'Adaptive'                        ; Flavor of Runge-Kutta step to use: 'Fixed' or 'Adaptive', timestep is the initial guess for the later
 Plot_range             = 1600.                             ; for 'Above ecliptic' viewing only. Defines the plate scale, the spatial distance of each axis to be plotted in BODY RADII 
-Output_Size_In_Pixels  = [128., 128., 128.]                ; Number of pixels on the [x,y,z] axis of the plot window (keep them all the same for sanity)
+;Output_Size_In_Pixels  = [128., 128., 128.]                ; Number of pixels on the [x,y,z] axis of the plot window (keep them all the same for sanity) Hack! Note to use this setting for Cassidy modelling
+Output_Size_In_Pixels  = [256., 256., 256.]                ; Number of pixels on the [x,y,z] axis of the plot window (keep them all the same for sanity) 
 Center_in_frame        = [1./2., 1./2., 1./2.]             ; [x,y,z] position of Body center within the output field of view, [1./2., 1./2., 1./2.] = centered 
 ;Upward_flux_at_exobase = 1.e26                             ; Upward Flux accross the exobase in particles per second, integrated over 2 pi steradians
 if keyword_set(Upward_flux_at_exobase_this_run) then Upward_flux_at_exobase=Upward_flux_at_exobase_this_run else $          
-Upward_flux_at_exobase = 1.e26                             ; Meteor's total vapourization
+Upward_flux_at_exobase = 2.e25                             ; Meteor's total vapourization
 ;Seed                   = 2653553L                         ; A large scalar long integer to seed the random number generator, comment out if the model is always to be initialized randomly. 
 Debug                  = 0                                 ; Set to 1 to output more detail at intermidiate steps.        
 exobase_height         = 0.d                               ; Exobase altitude above the surface, units of KM
 if keyword_set(Loop_times_this_run) then Loop_times=Loop_times_this_run else $ 
-Loop_times             = 2                                 ; How many loops the model should run, runs are stacked and averaged so this sets statistical noise  
-FOV                    = 3600.*90.                         ; ARCSECONDS to a side. Field of View to display for output images that are in SKY COORDINATES  
+Loop_times             = 3                                 ; How many loops the model should run, runs are stacked and averaged so this sets statistical noise  
+;FOV                    = 3600.*90.                         ; ARCSECONDS to a side. Field of View to display for output images that are in SKY COORDINATES  Hack! Note to use this setting for Cassidy modelling
+FOV                    = 3600.*60.                         ; ARCSECONDS to a side. Field of View to display for output images that are in SKY COORDINATES  
 N_ticks                = 10.                               ; Number of tick marks in the axis of the sky coordinate image
 tickstep               = 200.                              ; Axis tick step size in Body radii for the 'Above ecliptic' viewings  
 
 ;===========================================KEYWORDS=======================================================================
-Bounce                 = 1                                 ; Particles re-impacting the surface can bounce (=1) or stick (=0) 
+Bounce                 = 0                                 ; Particles re-impacting the surface can bounce (=1) or stick (=0) 
 Label_Phase            = 0                                 ; Display the body's phase angle as pixels? MAJOR ISSUE: Needs rotation to plane of sky. 
 Above_Ecliptic         = 0                                 ; Also writes an output image viewed from above the ecliptic plane with "Plot_range" field of view (longer run times)
+restore_aloft          = 1                                 ; restore a loc array to start the integration
           
 ;***********************************************OUTPUTS*************************************************
 ;                         All outputs are saved to the read_write directory
@@ -158,7 +164,8 @@ Above_Ecliptic         = 0                                 ; Also writes an outp
     initialize_array      = fltarr(Output_Size_In_Pixels[0], Output_Size_In_Pixels[1], loop_times)  ; Reform needed as a work-around in case of loop_times = 1
     Model_Cube_R          = reform(initialize_array, Output_Size_In_Pixels[0], Output_Size_In_Pixels[1], loop_times) ; stack/cube of the output images in Rayleighs
     Model_Cube_CD         = reform(initialize_array, Output_Size_In_Pixels[0], Output_Size_In_Pixels[1], loop_times) ; stack/cube of the output images in cgs column density
-    reimpacting_flux_Cube = fltarr(360, 180, loop_times)
+    Release_Flux_Cube     = reform(fltarr(360, 180, loop_times), 360, 180, loop_times)                               ; stack of maps of the surface ejecta flux in atoms / cm^2 / s
+    Reimpacting_Flux_Cube = reform(fltarr(360, 180, loop_times), 360, 180, loop_times)                               ; stack of maps of the surface return flux in atoms / cm^2 / s
     if keyword_set(Above_Ecliptic) then Above_Ecliptic_Cube_R  = reform(initialize_array, Output_Size_In_Pixels[0], Output_Size_In_Pixels[1], loop_times)
     if keyword_set(Above_Ecliptic) then Above_Ecliptic_Cube_CD = reform(initialize_array, Output_Size_In_Pixels[0], Output_Size_In_Pixels[1], loop_times)
 
@@ -170,19 +177,101 @@ Above_Ecliptic         = 0                                 ; Also writes an outp
     cspice_str2et, UTC, ephemeris_time          ; convert UTC to ephemeris time (expressed as the number of ephemeris seconds past J2000)  
     cspice_spkezr, Body, ephemeris_time, 'J2000', 'NONE', '0', state, light_time ;state is [x,y,z,vx,vy,vz] with respect to the solar system barycentre
     cspice_bodvrd, Body,'RADII', 3, Body_radius ; Find the simulated body's radius in Km
-    Body_radius = Body_radius[0]
-    state = state / Body_radius                 ; Convert state array's from km to units of planetary radii (used throughout this model)
+    state = state / Body_radius[0]              ; Convert state array's from km to units of planetary radii (used throughout this model)
   
   ; Load particle data like mass and cross-sections into a structure called particle_data, part of the model_shared common block
     LOAD_PARTICLE_DATA, Test_particle
   ; Load solar data in the region of interest to the emission line being modeled, part of the model_shared common block
     LOAD_LINE_DATA, Line
    
-  maxtime = max(Time_range)*24.*3600. ; Change stop time from days to seconds
-  mintime = min(Time_range)*24.*3600. ; Change start time from days to seconds
+  ; get start and stop integrations times in seconds 
+    maxtime = max(Time_range)*24.*3600.                                      ; Change stop time from days to seconds
+    mintime = min(Time_range)*24.*3600.                                      ; Change start time from days to seconds
+  
+  ; Calculate the number of molecules/atoms that each test particle represents (test particles represent packets of atoms)
+    if Maxtime eq mintime then duration = 1. else duration = maxtime-mintime ; duration over which the 'packets' of atoms are released [seconds]
+    release_rate = number_of_particles / duration                            ; release rate of particles into the model in particles per second
+    atoms_per_packet = Upward_flux_at_exobase / release_rate                 ; (atoms/s)/(packets/s), the average packet content loc[4,*] MUST BE UNITY INITIALLY.
+  
+  ; use a fixed photoionization lifetime. Skip the Irradiance.pro calculation of time-dependent lifetimes
+    Case test_particle of ; Force photoionization lifetime in seconds (Huebner & Mukherjee, 2015) Above calculation Irradiance.pro yeilds longer lifetimes!
+      'Na': ionizelife  = 1./7.26e-6  ; Quiet Sun, Huebner & Mukherjee, 2015
+      'Mg': ionizelife  = 1./6.49e-7  ; Huebner & Mukherjee, 2015
+      'K' : ionizelife  = 1./2.70e-5  ; Huebner & Mukherjee, 2015
+    endcase
+  
+  ; initialize the loc_aloft variable that will hold the cumulative totaled loc array for all airborn particles in the big for loop 
+  if keyword_set(restore_aloft) then loc_aloft = []
+  
+  if keyword_set(restore_aloft_filename) then begin
+    print, 'Restored intitial conditions from prior integration: ', restore_aloft_filename
+    restore, restore_aloft_filename
+    if (Ephemeris_time - saved_at_time) le 0. then stop
+    loc_aloft[9,*] = loc_aloft[9,*] + (Ephemeris_time - saved_at_time)
+    loc = loc_aloft
+    RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_packet, timestep, step_type
+    
+    ; Compute scattering rates for each packet in the exosphere
+      final_time = loc[9,*] - loc[8,*]
+      CSPICE_SPKEZR, body, ephemeris_time - REFORM(final_time), 'J2000', 'NONE', 'Sun', sun_state, ltime
+      sun_part_pos = loc[0:2,*] + sun_state[0:2,*]  ;Calculate the vectors from the sun to the particles
+      sun_part_vel = loc[5:7,*] + sun_state[3:5,*]
+      r_sun = sqrt((sun_part_pos[0,*]^2. + sun_part_pos[1,*]^2. + sun_part_pos[2,*]^2.))  ;Particle distance from the Sun (units of km)
+      Vrad = (sun_part_pos[0,*]*sun_part_vel[0,*] + $ ;radial velocity in KM/S WRT the Sun for all particles final states
+        sun_part_pos[1,*]*sun_part_vel[1,*] + $
+        sun_part_pos[2,*]*sun_part_vel[2,*]) / r_sun
+      gvalue, Line_data.line, Vrad * 1000., r_sun / 149597871., Line_data.wavelength, Line_data.intensity, g
+
+    ; Adjust scattering rates by the illuminated fraction of the solar disc that each particle sees
+      airborn_packets = where(loc[4,*] ne 0., number_airborn, /NULL)
+      if number_airborn gt 0 then begin
+        penum = illumination(fltarr( number_airborn ), loc[0,airborn_packets], loc[1,airborn_packets], loc[2,airborn_packets])
+        g[airborn_packets] = g[airborn_packets] * penum                         ; Only sunlit packets emit
+      endif
+      
+      ; Write the images
+        output_display, loc, g, atoms_per_packet, Image_type, 30000, 1, reimpact_loc = reimpact_loc
+        restore, strcompress(directory+'Model_Image_R'+string(30000)+'.sav')
+        restore, strcompress(directory+'Model_Image_CD'+string(30000)+'.sav')
+        
+      ; Make a FITS header and write in the settings above.
+        MKHDR,    Header, fltarr(Output_Size_In_Pixels[0], Output_Size_In_Pixels[1])
+        SXADDPAR, Header, 'UTC', UTC, ' UTC when image taken'
+        SXADDPAR, Header, 'Upward_flux_at_exobase', Upward_flux_at_exobase, ' Upward flux at exobase [atoms/s]'
+        SXADDPAR, Header, 'viewpoint', viewpoint, ' Observer location'
+        SXADDPAR, Header, 'Surface_distribution', Surface_distribution, ' Surface Distribution'
+        SXADDPAR, Header, 'FOV', FOV, ' Simulation Field of View [arcsec]'
+        SXADDPAR, Header, 'Speed_distribution', Speed_distribution, ' Particle Speed Distribution'
+        SXADDPAR, Header, 'Loop_times', Loop_times, ' Number of model loops'
+        SXADDPAR, Header, 'N_particles', Number_of_particles, ' # of particles / loop'
+        SXADDPAR, Header, 'Runtime', (systime(/seconds)-start_time)/3600., ' Simulation time [hours]'
+        Case n_elements(time_range) of
+          1: SXADDPAR, Header, 'time_range', time_range[0], ' Duration of particle integration [days]'
+          2: ;SXADDPAR, Header, 'time_range', string(time_range[0]), ' Duration of particle integration [days]' need to write a string or a scalar here, what to do?
+        Endcase
+        MKHDR, ext_Header, fltarr(Output_Size_In_Pixels[0], Output_Size_In_Pixels[1]), /IMAGE ; make an image extention header
+
+      ; Write an output FITS file with the mean brightness [extension 0], column density [extension 1] and header info about the input parameters simulated
+        mwrfits, Model_Image_R,  strcompress(directory+Output_title+'.fit'), Header, /create, /Silent ; Write the brightness in Rayleighs
+        mwrfits, Model_Image_CD, strcompress(directory+Output_title+'.fit'), ext_Header, /Silent      ; Append the column density per cm^-2 into FITS extension 1
+        output_display, loc, g, atoms_per_packet, Image_type, 30000, 2, reimpact_loc = reimpact_loc, label_phase = label_phase, Label_time = Label_time
+        
+        ; Output_display can define spacecraft instrument pointing info, if there's any such information present
+        ; add another fits binary table extention with this pointing info
+          if keyword_set(Boresight_Pixel) then begin
+            Pointing_info = {Pointing, Boresight_Pixel:Boresight_Pixel, Aperture_Corners:Aperture_Corners}
+            mwrfits, Pointing_info, strcompress(directory+Output_title+'.fit') ; Append the pointing info into FITS extension 2
+          endif
+        
+        airborn_packets = where(loc[4,*] ne 0., number_airborn, /NULL)
+        loc_aloft = loc[*,airborn_packets]   
+        saved_at_time = ephemeris_time
+        save, saved_at_time, loc_aloft, filename = directory + Output_title+'_loc_aloft.sav'
+      return  
+  endif
   
   FOR loop_number = 0, loop_times - 1 do begin ;How many times the program should loop to reduce statistical noise
-    loop_number = fix(loop_number) ;convert the loop number to an integer 
+    loop_number = fix(loop_number)                                                 ; convert the loop number to an integer 
   
     loc = fltarr(10, Number_of_particles) ;Create a massive array of all particles
       ; loc(0,*) will be the x coords of all the particles in body radii 
@@ -207,17 +296,22 @@ Above_Ecliptic         = 0                                 ; Also writes an outp
 
     ; The speed is normalized to 1, the velocity is randomly distributed in x,y,z directions 
     ; Make starting locations for particles
-      loc[0:2,*] = loc[0:2,*]*(Body_radius + exobase_height)    ; Scale the "release state" vectors to the exobase (km)        
-      loc(4,*) = 1.0                                            ; Packet content is full initially
+      loc[0:2,*] = loc[0:2,*]*(Body_radius[0] + exobase_height) ; Scale the "release state" vectors to the exobase (km)        
+      if total(loc[4,*]) eq 0. then loc[4,*] = 1.0              ; Unless weighting is already assigned in RELEASE_STATE, the packet content is initially full 
       loc[5,*] = loc[5,*]*speed                                 ; Give them initial velocities in x; units are km/s, speed array is in km/s
       loc[6,*] = loc[6,*]*speed                                 ; Give them initial velocities in y; units are km/s, speed array is in km/s
       loc[7,*] = loc[7,*]*speed                                 ; Give them initial velocities in z; units are km/s, speed array is in km/s
       loc[8,*] = 0.0D                                           ; Particles start out at 0 seconds in age, they haven't aged yet   
 
-    ; Calculate the number of molecules/atoms that each test particle represents (test particles represent packets of atoms)
-      if Maxtime eq mintime then duration = 1. else duration = maxtime-mintime ; duration over which the 'packets' of atoms are released [seconds]   
-      release_rate = number_of_particles / duration                            ; release rate of particles into the model in particles per second
-      atoms_per_packet = Upward_flux_at_exobase / release_rate                 ; (atoms/s)/(packets/s), the average packet content loc[4,*] must be unity initially.  
+    ; Convert the initial release flux into planetographic lon and lat. 
+    ; Map the release distribution over a 1 x 1 degree lat-lon grid (2D histogram).
+    ; This will be the total release over this duration units are atoms / cm^2  
+      cspice_pxform, 'J2000', 'IAU_'+body, ephemeris_time, J2000_to_BodyFixed_xform  ; Get a rotation matrix from the J2000 frame into the IAU body-fixed frame
+      launch_BF    = TRANSPOSE(J2000_to_BodyFixed_xform) # loc[0:2,*]                ; Body-fixed launch coordinates
+      flat         = ( Body_radius[0]-Body_radius[2] ) / Body_radius[0]              ; Flatness parameter. For body's that round so this is zero, Jupiter is fat not flat
+      cspice_recpgr, body, launch_BF, Body_radius[0], flat, lon, lat, alt            ; Planetographic longitude definition                                    
+      release_map  = Bin_2_SurfDens(lon*!radeg, lat*!radeg, loc[4,*]*atoms_per_packet, body_radius[0]*1.e5, $
+                                    min1 = 0., max1 = 359., min2=-90., max2 = 89., bin1 = 1., bin2 = 1.) 
 
       ;    ; Calculate the Time-Dependent photo-ionization rate using the cross-section vs. wavelength UV fluxes come from SORCE and SEE
       ;      Print, 'Loading incident solar flux. . . ' 
@@ -236,17 +330,11 @@ Above_Ecliptic         = 0                                 ; Also writes an outp
       ;          Color=cgColor('black'), Background=cgColor('white'), thick = 2., charthick = 1.6, charsize =1.6
       ;      endif
       
-      Case test_particle of ; Force photoionization lifetime in seconds (Huebner & Mukherjee, 2015) Above calculation Irradiance.pro yeilds longer lifetimes! 
-        'Na': ionizelife  = 1./7.26e-6  ; Quiet Sun, Huebner & Mukherjee, 2015       
-        'Mg': ionizelife  = 1./6.49e-7  ; Huebner & Mukherjee, 2015
-        'K' : ionizelife  = 1./2.70e-5  ; Huebner & Mukherjee, 2015              
-      endcase
-      
     ; Integrate the equations of motion
       Print, 'Starting particle motion integration. . . '
       RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_packet, timestep, step_type
       ; The "loc" array now contains final exosphere particle locations. 
-      ; The "reimpact_loc" contains locations of surface particles in the body-fixed / local time frame
+      ; The "reimpact_loc" array now contains locations of surface particles in the body-fixed / local time frame
 
     ; Compute scattering rates for each packet in the exosphere
       final_time = loc[9,*] - loc[8,*]
@@ -261,13 +349,17 @@ Above_Ecliptic         = 0                                 ; Also writes an outp
 
       ; Adjust scattering rates by the illuminated fraction of the solar disc that each particle sees       
         airborn_packets = where(loc[4,*] ne 0., number_airborn, /NULL)
-        penum = illumination(fltarr( number_airborn ), loc[0,airborn_packets], $
-                             loc[1,airborn_packets], loc[2,airborn_packets]) 
-        g[airborn_packets] = g[airborn_packets] * penum                         ; Only sunlit packets emit  
+        if number_airborn gt 0 then begin
+          penum = illumination(fltarr( number_airborn ), loc[0,airborn_packets], loc[1,airborn_packets], loc[2,airborn_packets]) 
+          g[airborn_packets] = g[airborn_packets] * penum                         ; Only sunlit packets emit  
+        endif
+        
+    ; save the loc array and g values
+      if keyword_set(restore_aloft) then loc_aloft = [ [loc_aloft], [loc[*,airborn_packets]] ]    
 
-    ; Write the image for that loop.    
+    ; Write the images for that loop.    
       output_display, loc, g, atoms_per_packet, Image_type, loop_number, 1, reimpact_loc = reimpact_loc
-      
+
     ; Build the images in both Rayleighs and Column Density by co-adding 
       restore, strcompress(directory+'Model_Image_R'+string(loop_number)+'.sav')
       restore, strcompress(directory+'Model_Image_CD'+string(loop_number)+'.sav')
@@ -280,8 +372,9 @@ Above_Ecliptic         = 0                                 ; Also writes an outp
         Above_Ecliptic_Cube_CD[*,*,Loop_number] = Above_Ecliptic_Image_CD   
       endif  
       if keyword_set(bounce) then begin
-        restore, strcompress(directory+'reimpacting_flux'+string(loop_number)+'.sav')
-        reimpacting_flux_Cube[*,*,Loop_number] = reimpacting_flux
+        restore, strcompress(directory+'reimpacting_flux'+string(loop_number)+'.sav') ; Restore a 1 x 1 degree body-fixed map of the reimpacts. Units are atoms / cm^2
+        Release_Flux_Cube[*,*,Loop_number]     = release_map / duration               ; Convert units to atoms / cm^2 / s, allocate it into a cube layer. We'll average this cube over loop #
+        Reimpacting_Flux_Cube[*,*,Loop_number] = reimpacting_flux / duration          ; Convert units to atoms / cm^2 / s, allocate it into a cube layer. We'll average this cube over loop #
       endif
       
     if N_elements(Time_range) gt 1 then save, loc, filename = strcompress(directory + Output_title + '_Loc_Array_'+string(loop_number)+'.sav') ; Save the big array for steady state release over some durations only 
@@ -293,49 +386,23 @@ Above_Ecliptic         = 0                                 ; Also writes an outp
     
     print, 'Finished Particle Integration for Loop Number', Loop_number+1
   endfor
+  
+  ; If we're simulating a time series, then we may want to initialize subsequent runs here. Save things so we can use this completed integration as a starting point
+    if keyword_set(restore_aloft) then begin 
+      saved_at_time = ephemeris_time
+      save, saved_at_time, loc_aloft, filename = directory+Output_title+'_loc_aloft.sav'
+    endif  
 
   ; Average (mean) the brightness and column density over the number of model runs in the above loop 
     Model_Image_R        = mean(Model_Cube_R,  dimension = 3)
     Model_Image_CD       = mean(Model_Cube_CD, dimension = 3)
+    Release_flux_Map     = mean(release_flux_Cube, dimension = 3)
     Reimpacting_flux_Map = mean(reimpacting_flux_Cube, dimension = 3)
     if keyword_set(Above_Ecliptic) then Above_Ecliptic_Image_R  = mean(Above_Ecliptic_Cube_R,  dimension = 3)
     if keyword_set(Above_Ecliptic) then Above_Ecliptic_Image_CD = mean(Above_Ecliptic_Cube_CD, dimension = 3)
-    
-  ; Turn the surface rempact map from atoms/pixel into atoms / ( cm^2 s )
-    Case n_elements(time_range) of
-      1: Reimpacting_flux_Map = Reimpacting_flux_Map / mintime           ; atoms / (pixel sec )
-      2: Reimpacting_flux_Map = Reimpacting_flux_Map / (maxtime-mintime) ; atoms / (pixel sec )
-    Endcase  
-
-    ;--------------------beta not ready for prime time-----------------------------------
-      loadct, 13
-      Reimpacting_flux_Map = rebin(Reimpacting_flux_Map, 36, 18)
-      map_size = size(Reimpacting_flux_Map, /dimensions)
-      MESH_OBJ, 4, Vertex_List, Polygon_List, REPLICATE(.5, map_size[0], map_size[1]), /closed
-      MESH_SA = MESH_SURFACEAREA( Vertex_List, Polygon_List )
-      ;lat_arr = (findgen(180) - 90 + .5) /!radeg
-      scale_to_cm = MESH_SA / (!pi * 4. * (body_radius*1.e5)^2)         ;Hack Hack this is almost certainly not a correct scaling factor from pixels to cm/2
-      
-      
-      
-      
-      
-      Reimpacting_flux_Map = Reimpacting_flux_Map * scale_to_cm
-      ; Transform the vertices:
-      T3D, /RESET
-      T3D, ROTATE=[0.0, 30.0, 0.0]
-      T3D, ROTATE=[0.0, 0.0, 40.0]
-      T3D, TRANSLATE=[0.5, 0.5, 0.5]
-      VERTEX_LIST = VERT_T3D(Vertex_List)
-      ; Create the window and view:
-      WINDOW, 0, XSIZE=800, YSIZE=600
-      CREATE_VIEW, WINX=800, WINY=600
-      ; Render the mesh:
-      SET_SHADING, LIGHT=[-0.5, 0.5, 2.0], REJECT=0
-      Reimpacting_Flux_Sphere = POLYSHADE(Vertex_List, Polygon_List, SHADES = bytscl(Reimpacting_flux_Map), /T3D)
-      cgimage, Reimpacting_Flux_Sphere, /keep_aspect
-      cgColorbar, minrange = 0., maxrange = max(Reimpacting_flux_Map), title = 'Surface Deposition', /right, /vertical, position = [0.97, 0.10, 0.99, 0.90] 
-    ;-----------------------end beta---------------------------------
+       
+    ;save, Release_Flux_map, Reimpacting_Flux_Map, body, ephemeris_time, viewpoint, filename = 'C:\Users\schmidtc\Desktop\remove_me.sav'
+    ;Display_Surface_Reimpacts, Release_flux_map, Reimpacting_flux_Map, body, ephemeris_time, viewpoint
 
   ; Make a FITS header and write in the settings above.
     MKHDR,    Header, fltarr(Output_Size_In_Pixels[0], Output_Size_In_Pixels[1])
@@ -359,6 +426,9 @@ Above_Ecliptic         = 0                                 ; Also writes an outp
     mwrfits, Model_Image_CD, strcompress(directory+Output_title+'.fit'), ext_Header, /Silent      ; Append the column density per cm^-2 into FITS extension 1
     if keyword_set(Above_Ecliptic) then mwrfits, Above_Ecliptic_Image_R, strcompress(directory+Output_title+'_Above_Ecliptic.fit'), header, /create, /Silent 
     if keyword_set(Above_Ecliptic) then mwrfits, Above_Ecliptic_Image_CD, strcompress(directory+Output_title+'_Above_Ecliptic.fit'), /Silent 
+    if keyword_set(Bounce) then mwrfits, Release_flux_Map, strcompress(directory+Output_title+'_Release_flux_Map.fit'), header, /create, /Silent
+    if keyword_set(Bounce) then mwrfits, Reimpacting_flux_Map, strcompress(directory+Output_title+'_Reimpacting_flux_Map.fit'), header, /create, /Silent
+    
     ; Example syntax for subsequent inspection: 
     ; Brightness = mrdfits(strcompress(directory+Output_title+'.fit'), 0, header) & print, header
     ; Column_den = mrdfits(strcompress(directory+Output_title+'.fit'), 1, header)

@@ -78,6 +78,7 @@ COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in
       release_points_Body_fixed = dblarr(3, N_Particles)
       cspice_subpnt, 'Near point: ellipsoid', body, ephemeris_time, 'IAU_'+body, 'LT', viewpoint, sub_observer_point_planet_frame, trgepc, srfvec      
       cspice_recpgr, body, sub_observer_point_planet_frame, re, flat, sub_observer_lon, sub_observer_lat, sub_observer_radius 
+      ss_lon = fltarr(N_Particles) & ss_lat = fltarr(N_Particles) 
       for i = 0, N_particles - 1 do begin ; sub-solar point moves depending on the release time, so we need a for loop to do this... 
         
         ; Get an x,y,z subsolar point (in km from planet center) in the body-fixed frame at the time of release.
@@ -91,6 +92,9 @@ COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in
                                                                        ; weighted towards the equator (more surface area per unit latitude)
           lon = ((180.*randomu(seed)))/!radeg - !pi/2. + sub_solar_lon ; gives a random longitude -90 and 90 degrees from the sub-solar point(in radians)
 
+          ss_lat[i] = lat 
+          ss_lon[i] = Lon - sub_solar_lon
+
         ; Convert the release point from planetographic coordinates to rectangular coordinates, still in the body fixed frame
           cspice_pgrrec, body, lon, lat, 0., re, flat, release_point_body_fixed
 
@@ -100,6 +104,13 @@ COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in
           release_points_J2000[*,i]      = release_point_J2000_frame / re  ; use body radii as the coodinates here
           release_points_body_fixed[*,i] = release_point_Body_fixed
       endfor
+
+      ; normalize for the photon flux per unit surface area
+        SZA_map = cos(SS_Lon)*cos(SS_Lat)
+        SZA_map[where(SZA_map le 0., /NULL)] = 0.
+        normalize_for_SZA = float(n_particles) / total(SZA_map)  
+        loc[4,*] = normalize_for_SZA * SZA_map
+        
     END
     STRMATCH(surface_distribution, 'Point*'): BEGIN
        
@@ -134,6 +145,62 @@ COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in
         endfor
 
     END
+    STRMATCH(surface_distribution, 'From_Map*'): BEGIN
+      map_filename = 'C:\IDL\Generic Model V2\read_write\Surface_reservoir\Mean_Reimpacting_Flux_Map.fit'
+      map = mrdfits(map_filename) ; TAKE CARE THAT LONGITUDE IS IN THE PROPER CONVENTION HERE: planetographic WEST longitude is the x axis (left-handed longitude)      
+      
+      ; Get an x,y,z subsolar point (in km from planet center) in the body-fixed frame at the time of release.
+      sub_solar_point_planet_frame = fltarr(3, N_Particles)
+      for i = 0, N_Particles - 1 do begin
+        cspice_subslr, 'Near point: ellipsoid', body, ephemeris_time - loc[9,i], 'IAU_'+body, 'none', viewpoint, sub_solar_point_BF, trgepc, srfvec
+        sub_solar_point_planet_frame[*,i] = sub_solar_point_BF
+      endfor
+      
+      ; Convert this sub-solar point to planetographic latitude and longitude, in the 'IAU_' body fixed frame
+        cspice_recpgr, body, sub_solar_point_planet_frame, re, flat, sub_solar_lon, sub_solar_lat, sub_solar_point_radius
+
+      ; Generate a randomn latitude and longitude so that the zenith of the hemisphere is along the positive y direction.
+        lat = asin(1.0-2.0*randomu(seed, N_particles, /double))                            ; gives a random number between -90 and 90 degrees (in radians)
+        ; weighted towards the equator (more surface area per unit latitude)
+        lon = ((180.*randomu(seed, N_particles, /double)))/!radeg - !pi/2. + sub_solar_lon ; gives a random longitude -90 and 90 degrees from the sub-solar point(in radians)
+      
+        lon = lon mod (2.*!pi)
+;      ; Generate isotropic release points in the body-fixed frame
+;        lat = asin(1.d - 2.d*randomu(seed, N_particles, /double))             ; gives a random number, -90 to 90 degrees (in radians) weighted towards the equator (more surface area per unit latitude)
+;        lon = 360.d*randomu(seed, N_particles, /double) /!RADEG               ; gives random longitudes 0 to 360 (in radians)
+
+      ss_lat = lat
+      ss_lon = Lon - sub_solar_lon
+      
+        cspice_pgrrec, body, lon, lat, replicate(0.D, N_particles), re, flat, release_points_body_fixed; convert these to cartesian, body fixed coords units of planetary radii here, not km
+
+      ; Convert planetographic coodinates to the J2000 frame at the ephemeris time for each particles release
+        release_points_J2000      = dblarr(3, N_Particles)
+        for i = 0, N_Particles - 1 do begin
+          cspice_pxform, 'IAU_'+body, 'J2000', ephemeris_time - loc[9,i], frame_rotate_matrix
+          cspice_mxv, frame_rotate_matrix, release_points_body_fixed[*,i], release_point_J2000_frame
+          release_points_J2000[*,i]      = release_point_J2000_frame / radii[0] ;the initial packet starting points in cartesian units of planetary radii
+        endfor
+        
+      ;------------------------------------hack------------------------------------------------------------------------------  
+        ;normalize = rebin(transpose(mean(map, dim = 1)), 360, 180)           ; HACK this normalization will remove the latitude Na
+        normalize = mean(map)
+        
+        map = map / normalize                                                 ; normalize the map to unity
+        map[*,179] = 1.                                                       ; fix the edge
+        map[where(map eq 0, /null)] = 1.                                      ; fix any missing pixels
+        map[83:97,*]   = 8. * map[83:97,*]                                    ; hacking here
+        map[263:277,*] = 8. * map[263:277,*]
+      ;------------------------------------hack------------------------------------------------------------------------------    
+      loc[4,*] = interpolate(map, lon*!radeg, lat*!radeg + 90.)               ; weight the particle initial contents by the map
+ 
+      ; normalize for the photon flux per unit surface area
+        SZA_map = cos(SS_Lon)*cos(SS_Lat)
+        SZA_map[where(SZA_map le 0., /NULL)] = 0.
+        normalize_for_SZA = float(n_particles) / total(SZA_map)  
+        loc[4,*] = loc[4,*]*normalize_for_SZA * SZA_map
+
+    END  
     ELSE: PRINT, 'Undefined spatial distribution requested as an input'  
   ENDCASE
 

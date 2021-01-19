@@ -245,7 +245,7 @@ pro RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_pac
     ; Arrays are full size here
       t = loc[9,*] - loc[8,*]                                       ; Time remaining to track particle
       moretogo = where(t gt 0., /NULL)                              ; Indicies of particles still being integrated
-      if moretogo eq !Null then moretogo[0] = 0
+      if moretogo eq !Null then done = 1
 
     ; Now only include particles still being tracked
       h = hold[moretogo]
@@ -310,7 +310,7 @@ pro RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_pac
 
           loc_orig = loc[*,moretogo]                                ; the original values 
           loc[*,moretogo] = loc1 + loc[*,moretogo] + delta*fcor     ; *** loc now has new values using 2 halfsteps ***
-          
+
         ; now for the elements where errors are too big
           toobig = where(errmax gt 1.)
           if toobig[0] ge 0. then loc[*,moretogo[toobig]] = loc_orig[*,toobig]  ; reset to original values and don't take these steps
@@ -345,14 +345,15 @@ pro RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_pac
                                                             ; 3 = planetographic latitude  (-90 to -90)      
                                                             ; 4 = orbital longitude / TAA  (0 to 360)
                                                             ; 5 = fractional content       (0 to 1)
-            reimpacts[5,*] = loc[4,moretogo[Hit_Body]] * atoms_per_packet ; log the number of particles that reimpacted the surface over this timestep
+            reimpacts[5,*] = loc[4,moretogo[Hit_Body]] * atoms_per_packet                                               ; log the number of particles that reimpacted the surface over this timestep
+            if (N_reimpacts gt 2^15) then stop                                                                          ; this condition in the for loop below needs testing
             
             for i = 0, N_reimpacts - 1 do begin
-              BF_State[*,i] = transpose( J2000_to_body_fixed_xform[*,*,i] ) # loc[0:5, moretogo[Hit_Body[i]]]            ; Body-Fixed cartesian states
-              cspice_recpgr, Body, BF_State[0:2,i], Body_radius[0], flat, p_lon, p_lat, p_alt                            ; Particle coords planetographic longitude definition
+              BF_State[*,i] = transpose( J2000_to_body_fixed_xform[*,*,i] ) # loc[0:5, moretogo[Hit_Body[i]]]           ; Body-Fixed cartesian states
+              cspice_recpgr, Body, BF_State[0:2,i], Body_radius[0], flat, p_lon, p_lat, p_alt                           ; Particle coords planetographic longitude definition
               
               cspice_subslr, 'Near point: ellipsoid', body, ephemeris_time - t[Hit_Body[i]], 'IAU_'+body, 'none', viewpoint, sub_solar_point_body_fixed, trgepc, srfvec 
-              cspice_recpgr, Body, sub_solar_point_body_fixed, Body_radius[0], flat, subslr_lon, subslr_lat, subslr_alt  ; Sub-solar point coords planetographic longitude definition
+              cspice_recpgr, Body, sub_solar_point_body_fixed, Body_radius[0], flat, subslr_lon, subslr_lat, subslr_alt ; Sub-solar point coords planetographic longitude definition
       
               ; Find Mercury's True Anomaly Angle
                 cspice_spkezr, Body, ephemeris_time - t[Hit_Body[i]], 'J2000', 'LT+S', 'Sun', state, ltime
@@ -385,35 +386,35 @@ pro RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_pac
              
               ; Use the local surface temperatures to find which particle bounce/stick with a Monte-Carlo technique 
                 Sticking_prob       = sticking_coefficient(particle_data.name, Local_surface_temps) ; 0 to 1 probabilities for sticking, from experimental data on re-adsorption vs. temperture             
-                dice                = randomu(seed, N_reimpacts)                                    ; Monte-Carlo method, roll the dice. . . 
+                dice                = transpose(randomu(seed, N_reimpacts))                                    ; Monte-Carlo method, roll the dice. . . 
                 stick_ind           = where(dice lt Sticking_prob, N_stuck, complement = bounce_ind, Ncomplement = N_bounced, /Null) ; bounce or stick ? 
 
               ; For those particles that stick...
-                loc[4,moretogo[Hit_Body[stick_ind]]] = 0.                                               ; set the fractional content of packets that hit the surface to zero
-                loc[8,moretogo[Hit_Body[stick_ind]]] = loc[9,moretogo[Hit_Body[stick_ind]]]                 ; set the time left in the integration to zero (because t = loc(9,*)-loc(8,*))
+                loc[4,moretogo[Hit_Body[stick_ind]]] = 0.                                                      ; set the fractional content of packets that hit the surface to zero
+                loc[8,moretogo[Hit_Body[stick_ind]]] = loc[9,moretogo[Hit_Body[stick_ind]]]                    ; set the time left in the integration to zero (because t = loc(9,*)-loc(8,*))
 
                 ; concatenate the contribution to the surface reservoir during this time step 
                   reimpact_loc = [ [reimpact_loc], [reimpacts[*,stick_ind]] ]
 
               ; For those particles that bounce... 
                 if N_bounced gt 0 then begin
-                
+
                   ; indices within "loc" of particles within loc that we want to bounce
                     bounce_indicies = moretogo[Hit_Body[bounce_ind]]
                   
                   ; Reset the particle coordinates to just above the surface
                     loc[0:2, bounce_indicies] = loc[0:2, bounce_indicies] * 1.00001 * $
-                                           body_radius[0] / rebin(loc[3, bounce_indicies], 3, N_bounced)
+                                                body_radius[0] / rebin(loc[3, bounce_indicies], 3, N_bounced)
                                                            
                   ; Reset the particle velocities, with optional thermal acccomodation to the local surface temp     
                     thermal_accomodation_coeff = 0.0  ;0.62 ;Hunten et al. 1988
-                    V_thermal = sqrt(2.*1.3806503e-23*Local_surface_temps/particle_data.mass) * 1.e-3        ; surface thermal speed, in km/s
-                    V_initial = sqrt(loc[5, bounce_indicies]^2+loc[6, bounce_indicies]^2+loc[7, bounce_indicies]^2)         ; re-impact velocity
-                    V_final = thermal_accomodation_coeff*V_thermal+(1.-thermal_accomodation_coeff)*V_initial ; give it a new speed in km/sec WRT the surface                                    
+                    V_thermal = sqrt(2.*1.3806503e-23*Local_surface_temps/particle_data.mass) * 1.e-3               ; surface thermal speed, in km/s
+                    V_initial = sqrt(loc[5, bounce_indicies]^2+loc[6, bounce_indicies]^2+loc[7, bounce_indicies]^2) ; re-impact velocity
+                    V_final   = thermal_accomodation_coeff*V_thermal+(1.-thermal_accomodation_coeff)*V_initial      ; give it a new speed in km/sec WRT the surface                                    
   
                   ; Assign new trajectories, bounce trajectories are weighted a COSINE DEPENDENCE WRT the surface normal
-                    r     = findgen(N_bounced) / N_bounced                            ; a zero to 1 array of n_particle increments
-                    theta = fltarr(N_bounced)                                        ; the independent variable that we're weighting over, in this case the angle each particle will have
+                    r     = findgen(N_bounced) / N_bounced                        ; a zero to 1 array of n_particle increments
+                    theta = fltarr(N_bounced)                                     ; the independent variable that we're weighting over, in this case the angle each particle will have
     
                     ; Define the probability distribution function that we're going to weight over.
                       distribution_function = sin(!pi*r/2.) * cos(!pi*r/2.)
@@ -436,7 +437,7 @@ pro RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_pac
                     loc[5,bounce_indicies] = sin(theta)*cos(phi)  ; the x-direction
                     loc[6,bounce_indicies] = sin(theta)*sin(phi)  ; the y-direction
                     loc[7,bounce_indicies] = cos(theta)           ; the z-direction
-                    z_axis = [0., 0., 1.]           ; define the z-axis in vector space.
+                    z_axis = [0., 0., 1.]                         ; define the z-axis in vector space.
                    
                     ; Rotate to align the z axis in the velocity vector distribution to the surface normal vectors. . .
                       for q = 0, N_bounced-1 do begin

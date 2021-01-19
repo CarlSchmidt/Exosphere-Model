@@ -109,9 +109,7 @@ N_particles = N_elements(loc[0,*])  ; Number of particles simulated
       ; if no surface intercept is found, the ray to this particle does not intersect the planet
       if (found eq 1) and (norm(J2000_rays[*,i]) gt norm(srfvec)) then occulted[i] = 0. ; this particle is behind the target body
     endfor
-  
-  Print, 'This section should be tested against various particle release lat/lon locations' 
-
+    
 ;----------------------This section builds a 2D image from a specified look direction------------------
 
 ; This performed in an angular sense, pixels beween xi & xj and yi & yj angles from a center axis fall into pixel xi and xj 
@@ -314,18 +312,17 @@ if Keyword_set(Above_ecliptic) then begin
       endfor
 endif ;----when next editing: try to combine this with the above regular loop!
 
-  if Keyword_set(reimpact_loc) then begin           ; allocate x, y positions in the deposition map
-    reimpacting_flux = fltarr(360, 180)             ; an image of the number of atoms that landed in every degree x degree [Planetographic W Longitude, Latitude]
-    X = reimpact_loc[2,*]
-    Y = reimpact_loc[3,*] + 90.      
-    reimpacting_flux[x,y] = reimpacting_flux[x,y] + reimpact_loc[5,*]  
-    save, reimpacting_flux, filename = strcompress(directory+'reimpacting_flux'+string(loop_number)+'.sav')
+  if Keyword_set(reimpact_loc) then begin ; make a lat-lon map (2D histogram) of the deposition map
+    reimpacting_flux = Bin_2_SurfDens(reimpact_loc[2,*], reimpact_loc[3,*], reimpact_loc[5,*], body_radius[0]*1.e5, $ ; particles per cm^2 averaed over degree bins (not yet per second)
+                                      min1 = 0., max1 = 359., min2=-90., max2 = 89., bin1 = 1., bin2 = 1.)
+    ; Write the output frames to save files
+      save, reimpacting_flux, filename = strcompress(directory+'reimpacting_flux'+string(loop_number)+'.sav')
   endif  
 
   ; ERROR HANDLING: Make sure no there are no infinite, NaN or negative pixels
     check_bad_pixels = WHERE( FINITE(Model_Image_R, /NAN), count_bad_pixels) 
     if count_bad_pixels gt 0 then stop
-    if (min(Model_Image_R ) lt 0) OR (fix(n_elements(Model_Image_R)) ne fix(total(finite(Model_Image_R)))) then stop
+    ;if (min(Model_Image_R ) lt 0) OR (fix(n_elements(Model_Image_R)) ne fix(total(finite(Model_Image_R)))) then stop
   
     ; Write the output frames to save files
       save, Model_Image_R , filename = strcompress(directory+'Model_Image_R'+string(loop_number)+'.sav')
@@ -387,70 +384,71 @@ if part eq 2 then begin ;Once the model reaches it's last loop, plot the average
             cspice_mtxv, cmat, bounds[*,i], bounds_vector_IAU_Mercury                         
             bounds_vectors_IAU_Mercury[*,i] = bounds_vector_IAU_Mercury                       ; Unit vectors that bound the aperture's footprint (IAU Mercury Frame)
           endfor
-        endif else print, 'No instrument pointing data found' 
 
-      ; Get the planetary coordinates of the tangent point of the boresight ray
-        cspice_spkpos, 'MESSENGER', ephemeris_time, 'IAU_Mercury', 'None', body, ptarg, ltime ; ptarg is the Mercury to MESSENGER vector (IAU Mercury Frame)
-        SC_to_planet_unit_vector = -ptarg/norm(-ptarg)
-        theta = cspice_vsep(boresight_vector_IAU_Mercury, SC_to_planet_unit_vector)           ; angle between the UVVS boresight unit vector and the MESSENGER-planet unit vectors
-        SC_to_tangent_point = boresight_vector_IAU_Mercury * norm(-ptarg) * cos(theta)
-        tangent_point_MERC_IAU = ptarg + SC_to_tangent_point
-
-      ; And also get the IAU_Mercury planetary coordinates of the corners that bound instrument's aperture
-        tangent_point_Bounds_MERC_IAU = dblarr(N_bounds)
-        for i = 0, n_bounds[1]-1 do begin
-          theta                              = cspice_vsep(bounds_vectors_IAU_Mercury[*,i], SC_to_planet_unit_vector) 
-          tangent_point_Bounds_MERC_IAU[*,i] = ptarg + bounds_vectors_IAU_Mercury[*,i] * norm(-ptarg) * cos(theta)
-        endfor
-
-        debug = 1 ; Set for inspecting the Planetographic coordinates of the point along the boresight ray that is tangent to the surface
-        if Keyword_Set(debug) then begin
-          cspice_et2utc, ephemeris_time, 'C', 0, utcstr
-          Print, 'At '+utcstr+':' 
-          cspice_reclat, tangent_point_MERC_IAU, radius, lon, lat                           ; Validated this result against the MESSENGER PDS DDR
-          print, 'UVVS Boresight Tangent Altitude:           ', radius[0] - Body_radius
-          print, 'UVVS Boresight Tangent Planetocentric Longitude:', lon[0]*!radeg            
-          print, 'UVVS Boresight Tangent Planetocentric Latitude: ', lat[0]*!radeg
-          Print, 'Note, however that this simulation uses *PLANETOGRAPHIC* longitude, i.e. with positive to the West.
-          Print, 'The PDS DDR give EAST longitude (planetocentric coodinates)'              ; See https://pds-atmospheres.nmsu.edu/PDS/data/messmas_2001/document/uvvs_cdr_ddr_sis.pdf
-          cspice_bodvrd, 'Mercury', 'RADII', 3, radii
-          flat = (radii[0] - radii[2])/radii[0]
-          cspice_recpgr, 'Mercury', tangent_point_MERC_IAU, radii[0], flat, lon, lat, alt   ; Planetographic longitude definition
-          print, 'UVVS Boresight Tangent Planetographic Longitude:', lon[0]*!radeg                 
-        endif
-
-      ; convert this boresight vector from the IAU Mercury frame in to a body-centered J2000 frame
-        cspice_pxform, 'IAU_Mercury', 'J2000', ephemeris_time, IAU_Mercury_to_J2000_transform_matrix
-        TP_J2000        = TRANSPOSE(IAU_Mercury_to_J2000_transform_matrix) # tangent_point_MERC_IAU          ; Boresight's tangent point in J2000
-        Bounds_TP_J2000 = TRANSPOSE(IAU_Mercury_to_J2000_transform_matrix) # tangent_point_Bounds_MERC_IAU   ; UVVS aperture corners tangent points in J2000
-
-      ; And now rotate the boresight's tangent point from the J2000 frame into the "loc_prime" frame (See Part 1 comments for how this is defined)
-        cspice_spkpos, 'Sun', ephemeris_time, 'J2000', 'NONE', body, Body2Sun_vector, light_time
-        cspice_spkpos, body, ephemeris_time, 'J2000', 'NONE', viewpoint, Observer2Body_vector, light_time
-        cspice_twovec, Observer2Body_vector, 3, Body2Sun_vector, 1, alignment_matrix                         ; Re-defines Observer2Body_vector as 'Z' axis
-        TP_prime        = TRANSPOSE(alignment_matrix) # TP_J2000
-        Bounds_TP_prime = TRANSPOSE(alignment_matrix) # Bounds_TP_J2000           
+        ; Get the planetary coordinates of the tangent point of the boresight ray
+          cspice_spkpos, 'MESSENGER', ephemeris_time, 'IAU_Mercury', 'None', body, ptarg, ltime ; ptarg is the Mercury to MESSENGER vector (IAU Mercury Frame)
+          SC_to_planet_unit_vector = -ptarg/norm(-ptarg)
+          theta = cspice_vsep(boresight_vector_IAU_Mercury, SC_to_planet_unit_vector)           ; angle between the UVVS boresight unit vector and the MESSENGER-planet unit vectors
+          SC_to_tangent_point = boresight_vector_IAU_Mercury * norm(-ptarg) * cos(theta)
+          tangent_point_MERC_IAU = ptarg + SC_to_tangent_point
+  
+        ; And also get the IAU_Mercury planetary coordinates of the corners that bound instrument's aperture
+          tangent_point_Bounds_MERC_IAU = dblarr(N_bounds)
+          for i = 0, n_bounds[1]-1 do begin
+            theta                              = cspice_vsep(bounds_vectors_IAU_Mercury[*,i], SC_to_planet_unit_vector) 
+            tangent_point_Bounds_MERC_IAU[*,i] = ptarg + bounds_vectors_IAU_Mercury[*,i] * norm(-ptarg) * cos(theta)
+          endfor
+  
+          debug = 1 ; Set for inspecting the Planetographic coordinates of the point along the boresight ray that is tangent to the surface
+          if Keyword_Set(debug) then begin
+            cspice_et2utc, ephemeris_time, 'C', 0, utcstr
+            Print, 'At '+utcstr+':' 
+            cspice_reclat, tangent_point_MERC_IAU, radius, lon, lat                           ; Validated this result against the MESSENGER PDS DDR
+            print, 'UVVS Boresight Tangent Altitude:           ', radius[0] - Body_radius
+            print, 'UVVS Boresight Tangent Planetocentric Longitude:', lon[0]*!radeg            
+            print, 'UVVS Boresight Tangent Planetocentric Latitude: ', lat[0]*!radeg
+            Print, 'Note, however that this simulation uses *PLANETOGRAPHIC* longitude, i.e. with positive to the West.
+            Print, 'The PDS DDR give EAST longitude (planetocentric coodinates)'              ; See https://pds-atmospheres.nmsu.edu/PDS/data/messmas_2001/document/uvvs_cdr_ddr_sis.pdf
+            cspice_bodvrd, 'Mercury', 'RADII', 3, radii
+            flat = (radii[0] - radii[2])/radii[0]
+            cspice_recpgr, 'Mercury', tangent_point_MERC_IAU, radii[0], flat, lon, lat, alt   ; Planetographic longitude definition
+            print, 'UVVS Boresight Tangent Planetographic Longitude:', lon[0]*!radeg                 
+          endif
+  
+        ; convert this boresight vector from the IAU Mercury frame in to a body-centered J2000 frame
+          cspice_pxform, 'IAU_Mercury', 'J2000', ephemeris_time, IAU_Mercury_to_J2000_transform_matrix
+          TP_J2000        = TRANSPOSE(IAU_Mercury_to_J2000_transform_matrix) # tangent_point_MERC_IAU          ; Boresight's tangent point in J2000
+          Bounds_TP_J2000 = TRANSPOSE(IAU_Mercury_to_J2000_transform_matrix) # tangent_point_Bounds_MERC_IAU   ; UVVS aperture corners tangent points in J2000
+  
+        ; And now rotate the boresight's tangent point from the J2000 frame into the "loc_prime" frame (See Part 1 comments for how this is defined)
+          cspice_spkpos, 'Sun', ephemeris_time, 'J2000', 'NONE', body, Body2Sun_vector, light_time
+          cspice_spkpos, body, ephemeris_time, 'J2000', 'NONE', viewpoint, Observer2Body_vector, light_time
+          cspice_twovec, Observer2Body_vector, 3, Body2Sun_vector, 1, alignment_matrix                         ; Re-defines Observer2Body_vector as 'Z' axis
+          TP_prime        = TRANSPOSE(alignment_matrix) # TP_J2000
+          Bounds_TP_prime = TRANSPOSE(alignment_matrix) # Bounds_TP_J2000           
+          
+        ; Move this to a MESSENGER origin, determine its "ra & dec" WRT to the Z axis, then convert this to X & Y image coordinates
+          cspice_recrad, TP_prime + [0,0,Body_distance_WRT_obs], TP_prime_dist, TP_prime_RA, TP_prime_dec
+          angular_radius = abs(TP_prime_dec - !pi/2.)
+          TP_RA  = angular_radius * cos(TP_prime_RA) * 3600.d/CSPICE_RPD()                                     ; This is just an X, Y coordinate in arcseconds from body center
+          TP_Dec = angular_radius * sin(TP_prime_RA) * 3600.d/CSPICE_RPD()
+          TP_X   = -TP_RA * ang_platescale + x_center                                                          ; RA increases **EASTWARD** not westward in the sky
+          TP_Y   = TP_Dec * ang_platescale + y_center
+          
+        ; And do the same to determine the X and Y pixel coordinates of the boresight bounds   
+          Aperture_Corners = dblarr(2, n_bounds[1])
+          for i = 0, n_bounds[1]-1 do begin
+            cspice_recrad, Bounds_TP_prime[*,i] + [0,0,Body_distance_WRT_obs], Bounds_TP_prime_dist, Bounds_TP_prime_RA, Bounds_TP_prime_dec  
+            angular_radius   = abs(Bounds_TP_prime_dec - !pi/2.)
+            Bounds_TP_RA     = angular_radius * cos(Bounds_TP_prime_RA) * 3600.d/CSPICE_RPD() 
+            Bounds_TP_Dec    = angular_radius * sin(Bounds_TP_prime_RA) * 3600.d/CSPICE_RPD()
+            Aperture_Corners[*,i] = [-Bounds_TP_RA * ang_platescale + x_center, Bounds_TP_Dec * ang_platescale + y_center] ; [X, Y] Pixel coordinate of each corner
+          endfor
+  
+        ; The final boresight pixel. Hack! The physical size and true alignement of the UVVS aperture are neglected here, and including this would give a more fair comparision  
+          boresight_pixel = round([TP_X,TP_Y])
         
-      ; Move this to a MESSENGER origin, determine its "ra & dec" WRT to the Z axis, then convert this to X & Y image coordinates
-        cspice_recrad, TP_prime + [0,0,Body_distance_WRT_obs], TP_prime_dist, TP_prime_RA, TP_prime_dec
-        angular_radius = abs(TP_prime_dec - !pi/2.)
-        TP_RA  = angular_radius * cos(TP_prime_RA) * 3600.d/CSPICE_RPD()                                     ; This is just an X, Y coordinate in arcseconds from body center
-        TP_Dec = angular_radius * sin(TP_prime_RA) * 3600.d/CSPICE_RPD()
-        TP_X   = -TP_RA * ang_platescale + x_center                                                          ; RA increases **EASTWARD** not westward in the sky
-        TP_Y   = TP_Dec * ang_platescale + y_center
-        
-      ; And do the same to determine the X and Y pixel coordinates of the boresight bounds   
-        Aperture_Corners = dblarr(2, n_bounds[1])
-        for i = 0, n_bounds[1]-1 do begin
-          cspice_recrad, Bounds_TP_prime[*,i] + [0,0,Body_distance_WRT_obs], Bounds_TP_prime_dist, Bounds_TP_prime_RA, Bounds_TP_prime_dec  
-          angular_radius   = abs(Bounds_TP_prime_dec - !pi/2.)
-          Bounds_TP_RA     = angular_radius * cos(Bounds_TP_prime_RA) * 3600.d/CSPICE_RPD() 
-          Bounds_TP_Dec    = angular_radius * sin(Bounds_TP_prime_RA) * 3600.d/CSPICE_RPD()
-          Aperture_Corners[*,i] = [-Bounds_TP_RA * ang_platescale + x_center, Bounds_TP_Dec * ang_platescale + y_center] ; [X, Y] Pixel coordinate of each corner
-        endfor
-
-      ; The final boresight pixel. Hack! The physical size and true alignement of the UVVS aperture are neglected here, and including this would give a more fair comparision  
-        boresight_pixel = round([TP_X,TP_Y])
+      endif else print, 'No instrument pointing data found'   
     endif  
   
   ; Draw the outline of the body and a line at the terminator for this phase angle
@@ -631,6 +629,12 @@ if part eq 2 then begin ;Once the model reaches it's last loop, plot the average
 ;      endelse           
 ;  cgPS_Close 
 
+  ; Some model runs don't degerate emissions (e.g., runs just to measure the surface reservoir), skip writing emission image post-scripts in this case
+    if total(stackedModel_Image_R) eq 0. then begin
+      print, 'Skipped output plots: no non-zero pixels in the emission image'
+      return           
+    endif
+  
   Log_Display = 1
   cgPS_Open, filename=strcompress(directory + Output_title + '_Emission.eps'), /ENCAPSULATED, /NOMATCH
     !P.font=1
@@ -727,7 +731,7 @@ if part eq 2 then begin ;Once the model reaches it's last loop, plot the average
         xyouts, .66,.75, strcompress(Label_Time + ' Hours'), /normal, color=cgColor('white'), charsize = 1.5          
   endif             
   cgPS_Close 
-
+  
 endif
 ;*************************************************************************************************************************************************************
 return
