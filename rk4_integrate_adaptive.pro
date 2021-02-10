@@ -346,7 +346,7 @@ pro RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_pac
                                                             ; 4 = orbital longitude / TAA  (0 to 360)
                                                             ; 5 = fractional content       (0 to 1)
             reimpacts[5,*] = loc[4,moretogo[Hit_Body]] * atoms_per_packet                                               ; log the number of particles that reimpacted the surface over this timestep
-            if (N_reimpacts gt 2^15) then stop                                                                          ; this condition in the for loop below needs testing
+            if (N_reimpacts gt long(2^15 - 1)) then stop                                                                ; this condition in the for loop below needs testing
             
             for i = 0, N_reimpacts - 1 do begin
               BF_State[*,i] = transpose( J2000_to_body_fixed_xform[*,*,i] ) # loc[0:5, moretogo[Hit_Body[i]]]           ; Body-Fixed cartesian states

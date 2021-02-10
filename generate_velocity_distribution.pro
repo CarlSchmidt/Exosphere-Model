@@ -46,6 +46,7 @@
 ;                  
 ; WRITTEN: 
 ;         Carl Schmidt, UVa 2013.           
+;         CS 2021 Added: Shematovich (2013) velocity distribution
 
 function Maxwellian, v, distribution_parameters
   COMMON Model_shared, Body, Ephemeris_time, Seed, Directory, Particle_data, Debug
@@ -89,6 +90,15 @@ function Kappa, v, distribution_parameters
   ;f is the distrubtion function over velocity, mks units
   
   ;Pierrard and Lazar, 2010 is the one that best matches the corresponding Maxwell-Bolzmann distribution
+  f = f / max(f)
+  return, f
+end
+
+function Shematovich, v, distribution_parameters ;
+  COMMON Model_shared, Body, Ephemeris_time, Seed, Directory, Particle_data, Debug
+  PDF = distribution_parameters.PDF
+  Velocity = distribution_parameters.velocity
+  f = interpol(PDF, Velocity, v, /NaN)
   f = f / max(f)
   return, f
 end
@@ -185,6 +195,16 @@ function generate_velocity_distribution, number_of_particles, distribution_param
     cghistoplot, speed/1000., Xtitle = 'Particle Release Velocity Distribution (km/s)', ytitle = $ 
       strcompress('Number per'+string(number_of_particles)+' Test Particles'), $
       charsize=1.6, histdata = histdata, binsize = .1
+      
+      if distribution eq 'Shematovich' then begin
+        readcol, directory+'Shematovich_2013_Fig5.txt', F='A,A', v1, v2, DELIMITER = ','
+        energy = float(v1) ;eV
+        PDF = float(v2) ;cm-2, s-1, eV-1
+        Velocity = sqrt(2.*energy*1.60218e-19/1.67377e-27) ;convert hydrogen energy in eV to joules to velocity in m/s
+        eV_over_m_per_s = 1. / sqrt(2.*1.*1.60218e-19/1.67377e-27)
+        PDF = PDF*eV_over_m_per_s ;convert hydrogen energy in eV to joules to velocity in m/s
+        cgplot, Velocity/1000., PDF*max(histdata)/max(pdf), xtitle = '(H atom velocity km/s)', ytitle = 'cm-2, s-1, (m/s)-1 at 400 km', /overplot
+      endif
   endif
 
 return, speed/1000. ;return speeds in km/s rather then m/s

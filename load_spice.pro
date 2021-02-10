@@ -59,7 +59,9 @@ COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in
                         'MESSENGER\messenger_2548.tsc', $                       ; Most recent spacecraft clock                                                                                
                         'MESSENGER\msgr_v231.tf', $                             ; Spacecraft frames & Instrument FOV kernel                                                                   
                         'MESSENGER\msgr_mascs_v100.ti', $                       ; Dynamic frames kernel                                                                                       
-                        'MESSENGER\msgr_1108_v02.bc', $                         ; MESSENGER Spacecraft Orientation CK Files, these are monthly: covers DECEMBER 2011 only                     
+                        'MESSENGER\msgr_1108_v02.bc', $                         ; MESSENGER Spacecraft Orientation CK Files, THESE ARE MONTHLY: COVERS AUGUST 2011 ONLY   
+                        'MESSENGER\msgr_1210_v02.bc', $                         ; MESSENGER Spacecraft Orientation CK Files, THESE ARE MONTHLY: COVERS October 2012 ONLY        
+                        'MESSENGER\msgr_1304_v02.bc', $                         ; MESSENGER Spacecraft Orientation CK Files, THESE ARE MONTHLY: COVERS April 2013 ONLY        
                         'MESSENGER\msgr_dyn_v600.tf', $                         ; MESSENGER dynamic Frames Kernel defining a series of dynamic frames that support data reduction and analysis
                         'MESSENGER\pck00010_msgr_v23.tpc']                                                                                                                                  
                   

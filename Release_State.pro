@@ -63,7 +63,23 @@ COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in
     distribution_parameters = {Kappa_Structure, Distribution:Distribution, Temperature:Temperature, Kappa:Kappa}
     speed = generate_velocity_distribution(N_particles, distribution_parameters)
   endif
+  if STRPOS(speed_distribution, 'Shematovich') eq 0 then begin
+    Distribution = 'Shematovich'
+    readcol, Directory+'Shematovich_2013_Fig5.txt', F='A,A', v1, v2, DELIMITER = ',' ;'Shematovich (2013) Figure 5'
+    energy = float(v1) ;eV
+    PDF = float(v2) ;cm-2, s-1, eV-1
 
+    ; convert that to cm-2, s-1, (m/s)-1
+      Velocity = sqrt(2.*energy*1.60218e-19/Particle_data.mass) ;convert hydrogen energy in eV to joules to velocity in m/s
+      eV_over_m_per_s = 1. / sqrt(2.*1.*1.60218e-19/Particle_data.mass)
+      PDF = PDF*eV_over_m_per_s ;convert hydrogen energy in eV to joules and then to velocity in m/s
+
+    Temperature = 800. ;meaningless here, but needed to set a somewhat arbitrarty upper bound on the randomn velocities within the CDF
+    distribution_parameters = {Shematovich_Structure, Distribution:Distribution, Temperature:Temperature, PDF:PDF, Velocity:Velocity}
+    speed = generate_velocity_distribution(n_elements(loc[9,*]), distribution_parameters)
+    isotropic_release = 1
+  endif
+  
 ; ============================================== LAUNCH COORDINATES =================================================================================================
 ; Get the particle launch locations in body-centered J2000 coordinates
   CASE 1 OF

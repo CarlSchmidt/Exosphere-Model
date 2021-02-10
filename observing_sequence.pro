@@ -7,13 +7,19 @@ Pro Observing_Sequence, Meteor_impact_UTC = Meteor_impact_UTC, Plume_Temperature
 
 ; Current Run
       Meteor_impact_UTC             = '2011-08-04 02:20:00'       ; time of the impact
-      Plume_Temperature             = '5000K'                    ; temperature of the impact vapour
       Surface_distribution = 'Point_[115, 0]'                     ; Location of the impactor
+      Plume_Temperature             = '15000K'                    ; temperature of the impact vapour      
       loop_times                    = 90.                         ; Bear minimum for any reasonable S/N
       Na_Lofted                     = 1.e25                       ; seems like a lot
       Mg_Lofted                     = 4.*Na_lofted                ; seems like a lot
-      Brightness_multiplier_Na      = 1.3000   
-      Brightness_multiplier_Mg      = 0.9286  
+      Brightness_multiplier_Na      = 1.3000                      ; for best fit at 10,000K 1.e25 ejected
+      Brightness_multiplier_Mg      = 0.9286                      ; for best fit at 15,000K 1.e25 ejected
+      
+      ;For comparison
+      ;Meteor_impact_UTC             = '2011-08-04 02:15:00'      ; time of the impact
+      ;Plume_Temperature             = '3501K'                    ; temperature of the impact vapour      
+      ;Brightness_multiplier_Na      = 0.4250                     
+      ;Brightness_multiplier_Mg      = 0.32                     
 
 COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in_frame, viewpoint, FOV, N_ticks, Tickstep, Observatory, Above_Ecliptic, Boresight_Pixel, Aperture_Corners
 COMMON Model_shared, Body, Ephemeris_time, Seed, Directory, Particle_data, Line_data, Debug
@@ -29,10 +35,14 @@ Mg_Model_Color = 'Medium Orchid'
 ;key_frames_Na = [5,6,15,20,26,45,48,51]
 ;key_frames_Na = [indgen(50)*2]
 key_frames_Na = [indgen(333)]
+;key_frames_Na = [indgen(155)]
+;key_frames_Na = [indgen(115)]
 key_frames_Na = key_frames_Na[UNIQ(key_frames_Na, SORT(key_frames_Na))]
 ;key_frames_Mg = [2,11,18,21,33,35]
 ;key_frames_Mg = [indgen(30)*2]
 key_frames_Mg = [indgen(330)]
+;key_frames_Mg = [indgen(155)]
+;key_frames_Mg = [indgen(115)]
 key_frames_Mg = key_frames_Mg[UNIQ(key_frames_Mg, SORT(key_frames_Mg))]
 
   Na_scale = alog10([10^(-0.25), 10^1.75]) ; range to logrithmically scale the Na images in KiloRayleighs
@@ -80,6 +90,7 @@ key_frames_Mg = key_frames_Mg[UNIQ(key_frames_Mg, SORT(key_frames_Mg))]
   endfor
   duration      = where((PDS_ET_Na gt start_ET) and (PDS_ET_Na lt stop_ET), /NULL)
   keep_Na       = where(abs(UVVS_DDR_Na[duration].TOTAL_RADIANCE_SNR) gt SNR_threshold, /Null)
+  DDR_Na_subset = UVVS_DDR_Na[duration[Keep_Na]]
   DDR_Na        = UVVS_DDR_Na[duration[Keep_Na]].TOTAL_RADIANCE_KR
   DDR_Na_err    = UVVS_DDR_Na[duration[Keep_Na]].TOTAL_RADIANCE_KR / UVVS_DDR_Na[duration[Keep_Na]].TOTAL_RADIANCE_SNR
   PDS_ET_Na     = PDS_ET_Na[duration[Keep_Na]]
@@ -103,6 +114,7 @@ key_frames_Mg = key_frames_Mg[UNIQ(key_frames_Mg, SORT(key_frames_Mg))]
   endfor
   duration      = where((PDS_ET_Mg gt start_ET) and (PDS_ET_Mg lt stop_ET), /NULL)
   keep_Mg       = where(abs(UVVS_DDR_Mg[duration].TOTAL_RADIANCE_SNR) gt SNR_threshold, /Null)
+  DDR_Mg_subset = UVVS_DDR_Mg[duration[Keep_Mg]]
   DDR_Mg        = UVVS_DDR_Mg[duration[Keep_Mg]].TOTAL_RADIANCE_KR
   DDR_Mg_err    = UVVS_DDR_Mg[duration[Keep_Mg]].TOTAL_RADIANCE_KR / UVVS_DDR_Mg[duration[Keep_Mg]].TOTAL_RADIANCE_SNR
   PDS_ET_Mg     = PDS_ET_Mg[duration[Keep_Mg]]
@@ -115,8 +127,8 @@ key_frames_Mg = key_frames_Mg[UNIQ(key_frames_Mg, SORT(key_frames_Mg))]
                   (Mg_UTC_string eq '2011-08-04 04:04:09.67') or $
                   (Mg_UTC_string eq '2011-08-04 04:54:33.67') or $ 
                   (Mg_UTC_string eq '2011-08-04 05:59:21.67') )
-  remove, Bad_Na, DDR_Na, DDR_Na_err, PDS_ET_Na, PDS_JD_Na, Na_UTC_string
-  remove, Bad_Mg, DDR_Mg, DDR_Mg_err, PDS_ET_Mg, PDS_JD_Mg, Mg_UTC_string
+  remove, Bad_Na, DDR_Na, DDR_Na_err, PDS_ET_Na, PDS_JD_Na, Na_UTC_string, DDR_Na_subset
+  remove, Bad_Mg, DDR_Mg, DDR_Mg_err, PDS_ET_Mg, PDS_JD_Mg, Mg_UTC_string, DDR_Mg_subset
 
 ; Load the background model's from Tim Cassidy and Matt Burger
   readcol, Directory+'MESSENGER_UVVS\Background_Model\Mg_time_series_278.txt', MG_BG_UTC_string_278, MG_Obs_BG_278, MG_BG_278, format = 'A,F,F'
@@ -169,8 +181,8 @@ key_frames_Mg = key_frames_Mg[UNIQ(key_frames_Mg, SORT(key_frames_Mg))]
     
     Generic_Model, Time_range_this_run = days_since_meteor_impact[i], Output_title_this_run = write_directory + '\Na_Meteor_frame_'+strcompress(string(i), /remove_all), $
                    test_particle_this_run = 'Na', Line_this_run = 'Na-D', UTC_this_run = Na_UTC_string[i], $
-                   ;Surface_distribution_this_run = Surface_distribution, Speed_distribution_this_run = 'MBF_10000K', $
-                   Surface_distribution_this_run = Surface_distribution, Speed_distribution_this_run = 'MBF_'+plume_temperature, $
+                   Surface_distribution_this_run = Surface_distribution, Speed_distribution_this_run = 'MBF_10000K', $
+                   ;Surface_distribution_this_run = Surface_distribution, Speed_distribution_this_run = 'MBF_'+plume_temperature, $
                    loop_times_this_run = loop_times, Upward_flux_at_exobase_this_run = Na_Lofted, restore_aloft_filename = restore_aloft_filename          
   endfor
 
@@ -279,7 +291,7 @@ key_frames_Mg = key_frames_Mg[UNIQ(key_frames_Mg, SORT(key_frames_Mg))]
            cspice_recpgr, body, spoint, radii[0], f, spglon, spglat, spgalt
            SOP_lat = spglat * cspice_dpr()                                    ; planetographic latitude of the sub-observer point on the surface. (0 at equator, 90 at north pole, -90 at south pole)
            SOP_lon = spglon * cspice_dpr()                                    ; planetographic longitude of the sub-observer point on the surface. (0 to 360 west longitude).
-           ;if keyword_set(debug) then print, 'Sub-observer Lat & Lon  =', SOP_lat, SOP_lon, ' Angular diameter of ', body, ' =', 2.*R_M, ' arcsec'
+           if keyword_set(debug) then print, 'Sub-observer Lat & Lon  =', SOP_lat, SOP_lon, ' Angular diameter of ', body, ' =', 2.*R_M, ' arcsec'
 
          ; setup the x-y grid image
            xdim     = float(sxpar(Na_header, 'NAXIS1'))
@@ -331,7 +343,7 @@ key_frames_Mg = key_frames_Mg[UNIQ(key_frames_Mg, SORT(key_frames_Mg))]
         ; Mark the UVVS aperture projection, the coordinates here need to be in degrees
           cgPolygon, [transpose(Pointing_Mg.APERTURE_CORNERS[0,*]), Pointing_Mg.APERTURE_CORNERS[0,0]]*platescale/3600.+range[0], $
                      [transpose(Pointing_Mg.APERTURE_CORNERS[1,*]), Pointing_Mg.APERTURE_CORNERS[1,0]]*platescale/3600.+range[0], COLOR='Snow', /fill
-                     
+
             ;----------------------------Generate the Latitude & Longitude grid to overlay on the column density----------------------------------
             ; Find the angular size
               CSPICE_SPKEZR, body, PDS_ET_Mg[nearest_Mg], 'J2000', 'LT', viewpoint, BODY_state, ltime
@@ -420,18 +432,40 @@ key_frames_Mg = key_frames_Mg[UNIQ(key_frames_Mg, SORT(key_frames_Mg))]
         ; plot the nominal background  
             cgplot, PDS_JD_Na[0:i], Na_BG[0:i], color = 'Black', /overplot, thick = 4, linestyle = 1                
 
-        ; Annotate what's gogin on here
+        ; Annotate what's going on here
           ind = where(Na_UTC_string eq '2011-08-04 04:15:06.43') 
           
           cgtext, PDS_JD_Na[ind] + 1.5/24., 14, 'UVVS Na', color = Na_Data_Color, charsize = 1
           cgtext, PDS_JD_Na[ind] + 1.5/24., 10, string(brightness_multiplier_Na * sxpar(Na_header, 'UPWARD_F') * 22.989769*1.e-3 / 6.02214e23, format = '(F4.2)') + ' kg Na', color = 'Black', charsize = 1    
           cgtext, PDS_JD_Na[ind] + 1.5/24., 6, '10,000K', color = 'Black', charsize = 1
+          ;cgtext, PDS_JD_Na[ind] + 1.5/24., 6, '3,500K', color = 'Black', charsize = 1
           
           cgtext, mean(!x.crange), 74, 'Simulated Meteor Impact: ' + strmid(Meteor_impact_UTC, 12, 4) + ' at ' + $
             strmid(Surface_distribution, 7, 3) + cgsymbol('deg') + ' W Lon, '+ strmid(Surface_distribution, 12, 1) + cgsymbol('deg') + ' Lat', color = 'black', charsize = 1, alignment = .5
           ;cgtext, PDS_JD_Na[ind] + .70/24., 9, Plume_Temperature + ' MBF', color = 'black', charsize = 1
           cgtext, PDS_JD_Na[0]-.01, -15, 'Brightness [kR]', orientation = 90, charsize = 1.
  
+          debug = 1
+          if keyword_set(debug) then begin
+            cgtext, PDS_JD_Na[0]+.03, 15., '--------UTC-------LT----ALT--(MERC-SUN AXIS) ANG--APERTURE COORD---', charsize = .6
+            coords = mean(Pointing_Na.APERTURE_CORNERS, dim = 2) * platescale/3600.+range[0]
+            test_alt = radii[0]*sqrt(coords[0]^2 + coords[1]^2) / (R_M / 3600.) - radii[0]
+
+            ; Spherical triangle Pythagorean formula
+              A = radii[0] * coords[0] / (R_M / 3600.)
+              B = radii[0] * coords[1] / (R_M / 3600.)
+              r = norm(DDR_Na_subset[i].PLANET_SC_VECTOR_TG)
+              B_o_R = coords[1] / (R_M / 3600.)
+              test_alt2 = R * acos(cos(A/R) * cos(B/R)) - radii[0]
+
+            cgtext, PDS_JD_Na[0]+.03, 12., strmid(Na_UTC_string[i], 0, 19) + $
+                    string(DDR_Na_subset[i].TARGET_LOCAL_TIME, format = '(F6.2)') + 'hr' + $
+                    string(DDR_Na_subset[i].TARGET_ALTITUDE[0], format = '(I6)') + 'km          ' + $
+                    string(!radeg * cspice_vsep( DDR_Na_subset[i].PLANET_SUN_VECTOR_TG, DDR_Na_subset[i].BORESIGHT_UNIT_VECTOR_CENTER_TG ), format = '(F8.2)') + 'deg                       [' + $
+                    string(coords[0], format = '(F5.2)')+','+string(coords[1], format = '(F6.2)') + ']', charsize = .6
+            cgtext, PDS_JD_Na[0]+.065, 9., string(test_alt, format = '(I6)') + 'km' + string(test_alt2, format = '(I6)') + 'km', charsize = .6
+          stop
+          endif
       ; Lower panel  
         P = [pos[0,2]+0.065, pos[1,2]-.01, pos[2,3]-0.065, pos[3,2]-.14]
         
@@ -453,11 +487,13 @@ key_frames_Mg = key_frames_Mg[UNIQ(key_frames_Mg, SORT(key_frames_Mg))]
           cgtext, PDS_JD_Na[ind] + 1.5/24., 0.78, 'UVVS Mg', Color = Mg_Data_Color, charsize = 1
           cgtext, PDS_JD_Na[ind] + 1.5/24., 0.6, string(brightness_multiplier_Mg * sxpar(Mg_header, 'UPWARD_F') * 24.305*1.e-3 / 6.02214e23, format = '(F4.2)') + ' kg Mg', color = 'Black', charsize = 1
           cgtext, PDS_JD_Na[ind] + 1.5/24., 0.42, '15,000K', color = 'Black', charsize = 1
+          ;cgtext, PDS_JD_Na[ind] + 1.5/24., 0.42, '3,500K', color = 'Black', charsize = 1
         
       cgPS_Close, width = xs, /PNG;, /Delete_PS ; Convert to PNG file.
       image = Read_PNG(Directory + write_directory + '\movie.png')
       image = image[*,0:xs-1,0:ys-1] ;not sure why this is needed but it is
       void = video -> Put(stream, image)
+      ;if i eq 50 then break
   endfor
   video -> Cleanup
 

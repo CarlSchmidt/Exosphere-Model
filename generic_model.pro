@@ -3,7 +3,7 @@ pro generic_model, Time_range_this_run = Time_range_this_run, test_particle_this
                    Speed_Distribution_this_run = Speed_Distribution_this_run, Surface_Distribution_this_run = Surface_Distribution_this_run, Loop_times_this_run = Loop_times_this_run, $
                    Upward_flux_at_exobase_this_run = Upward_flux_at_exobase_this_run, restore_aloft_filename = restore_aloft_filename
                    
-; Carl Schmidt, BU, 2020
+; Carl Schmidt, BU, 2021
 ; Originally adapted from Jody Wilson, Boston University, 2007 
 ;
 ; MODIFICATIONS:
@@ -56,7 +56,7 @@ COMMON Model_shared, Body, Ephemeris_time, Seed, Directory, Particle_data, Line_
 COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in_frame, viewpoint, FOV, N_ticks, Tickstep, Observatory, Above_Ecliptic, Boresight_Pixel, Aperture_Corners
 
 ;===========================================INPUTS=======================================================================
-if !VERSION.OS_FAMILY eq ('unix' or 'MacOS') then begin    ; A simple way to differntiate my path from Tim's
+if !VERSION.OS_FAMILY eq ('unix' or 'MacOS') then begin    ; A simple way to differentiate my path from Tim's
   directory          = '/Users/tica9197/Documents/mercury/Exosphere-Model-master/read_write/' 
   kernel_directory   = '/Users/tica9197/Documents/mercury/kernels/'
 endif else begin
@@ -85,16 +85,17 @@ Line               = 'Na-D'                                ; Emission line to mo
                                                            ;          'Mg-2853'  
                                                            ;          'K-D'                                             
 if keyword_set(Speed_distribution_this_run) then Speed_distribution = Speed_distribution_this_run else $            
-Speed_distribution = 'MBF_1200K'                           ; Set the speed distribution the particles will be released with
+Speed_distribution = 'Shematovich'                         ; Set the speed distribution the particles will be released with
                                                            ; Options: 'Maxwellian_3000K'  where temperature is variable
-                                                           ;          'MBF_3000K'         where temperature is variable, 
+                                                           ;          'MBF_3000K'         where temperature is variable 
                                                            ;                              Maxwell-Bolzmann Flux Dist. (V^3)
                                                            ;          'Kappa_1500K_K=1.8' where temperature is variable
                                                            ;                              and ~1.6 < K < ~30 
                                                            ;          'Step_[Vmin,Vmax]'  random velocities between Vmin
-                                                           ;                                        and Vmax specified in km/s 
+                                                           ;                              and Vmax specified in km/s 
+                                                           ;          'Shematovich'       Distribution from the Shematovich 2013 paper, requires an associated input file 
 if keyword_set(Surface_distribution_this_run) then Surface_distribution = Surface_distribution_this_run else $   
-Surface_distribution = 'Dayside'                           ; Set the surface distribution the particles will be released with
+Surface_distribution = 'dayside'                    ; Set the surface distribution the particles will be released with
                                                            ; Options: 'Global'            Everywhere uniform
                                                            ;          'Dayside'           Uniform 2pi steradians, centered in sub-solar longitude [-90,90 lat]
                                                            ;          'Point_[lon,lat]'   Specified W. Lon & Lat [degrees]                 
@@ -117,21 +118,18 @@ Time_range             = [0.,0.25]                 ; When to start and stop rele
 ;Time_range             = [6./24.,7./24.]                 ; When to start and stop releasing particles from the planet [End, Begin] days ago e.g., [0.0, 0.5]
                                                            ; A single element array represents a 1 sec 'pulse' of particles occuring [pulse_time] days ago
 timestep               = 50.                               ; Time step in seconds from the RK4 integrator, use < = 50 s at Mercury 
-Step_Type              = 'Adaptive'                        ; Flavor of Runge-Kutta step to use: 'Fixed' or 'Adaptive', timestep is the initial guess for the later
+Step_Type              = 'Fixed'                           ; Flavor of Runge-Kutta step to use: 'Fixed' or 'Adaptive', timestep is the initial guess for the later. NOTE BUG: Adaptive timesteps w/ Bouncing is BROKEN
 Plot_range             = 1600.                             ; for 'Above ecliptic' viewing only. Defines the plate scale, the spatial distance of each axis to be plotted in BODY RADII 
-;Output_Size_In_Pixels  = [128., 128., 128.]                ; Number of pixels on the [x,y,z] axis of the plot window (keep them all the same for sanity) Hack! Note to use this setting for Cassidy modelling
 Output_Size_In_Pixels  = [256., 256., 256.]                ; Number of pixels on the [x,y,z] axis of the plot window (keep them all the same for sanity) 
 Center_in_frame        = [1./2., 1./2., 1./2.]             ; [x,y,z] position of Body center within the output field of view, [1./2., 1./2., 1./2.] = centered 
-;Upward_flux_at_exobase = 1.e26                             ; Upward Flux accross the exobase in particles per second, integrated over 2 pi steradians
 if keyword_set(Upward_flux_at_exobase_this_run) then Upward_flux_at_exobase=Upward_flux_at_exobase_this_run else $          
-Upward_flux_at_exobase = 2.e25                             ; Meteor's total vapourization
+Upward_flux_at_exobase = 2.e25                             ; Upward Flux accross the exobase in particles per second, integrated over 2 pi steradians, or for an intantaneous event, e.g. a meteor's total vapourization
 ;Seed                   = 2653553L                         ; A large scalar long integer to seed the random number generator, comment out if the model is always to be initialized randomly. 
 Debug                  = 0                                 ; Set to 1 to output more detail at intermidiate steps.        
 exobase_height         = 0.d                               ; Exobase altitude above the surface, units of KM
 if keyword_set(Loop_times_this_run) then Loop_times=Loop_times_this_run else $ 
 Loop_times             = 3                                 ; How many loops the model should run, runs are stacked and averaged so this sets statistical noise  
-;FOV                    = 3600.*90.                         ; ARCSECONDS to a side. Field of View to display for output images that are in SKY COORDINATES  Hack! Note to use this setting for Cassidy modelling
-FOV                    = 3600.*60.                         ; ARCSECONDS to a side. Field of View to display for output images that are in SKY COORDINATES  
+FOV                    = 3600.*45.                         ; ARCSECONDS to a side. Field of View to display for output images that are in SKY COORDINATES
 N_ticks                = 10.                               ; Number of tick marks in the axis of the sky coordinate image
 tickstep               = 200.                              ; Axis tick step size in Body radii for the 'Above ecliptic' viewings  
 
@@ -201,12 +199,12 @@ restore_aloft          = 1                                 ; restore a loc array
     endcase
   
   ; initialize the loc_aloft variable that will hold the cumulative totaled loc array for all airborn particles in the big for loop 
-  if keyword_set(restore_aloft) then loc_aloft = []
+    if keyword_set(restore_aloft) then loc_aloft = []
   
   if keyword_set(restore_aloft_filename) then begin
     print, 'Restored intitial conditions from prior integration: ', restore_aloft_filename
     restore, restore_aloft_filename
-    if (Ephemeris_time - saved_at_time) le 0. then stop
+    if (Ephemeris_time - saved_at_time) le 0. then stop                                   ; Restored integration always runs to an earlier time then the new simulation, never later
     loc_aloft[9,*] = loc_aloft[9,*] + (Ephemeris_time - saved_at_time)
     loc = loc_aloft
     RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_packet, timestep, step_type
@@ -214,10 +212,10 @@ restore_aloft          = 1                                 ; restore a loc array
     ; Compute scattering rates for each packet in the exosphere
       final_time = loc[9,*] - loc[8,*]
       CSPICE_SPKEZR, body, ephemeris_time - REFORM(final_time), 'J2000', 'NONE', 'Sun', sun_state, ltime
-      sun_part_pos = loc[0:2,*] + sun_state[0:2,*]  ;Calculate the vectors from the sun to the particles
+      sun_part_pos = loc[0:2,*] + sun_state[0:2,*]                                        ; Calculate the vectors from the sun to the particles
       sun_part_vel = loc[5:7,*] + sun_state[3:5,*]
-      r_sun = sqrt((sun_part_pos[0,*]^2. + sun_part_pos[1,*]^2. + sun_part_pos[2,*]^2.))  ;Particle distance from the Sun (units of km)
-      Vrad = (sun_part_pos[0,*]*sun_part_vel[0,*] + $ ;radial velocity in KM/S WRT the Sun for all particles final states
+      r_sun = sqrt((sun_part_pos[0,*]^2. + sun_part_pos[1,*]^2. + sun_part_pos[2,*]^2.))  ; Particle distance from the Sun (units of km)
+      Vrad = (sun_part_pos[0,*]*sun_part_vel[0,*] + $                                     ; Radial velocity in KM/S WRT the Sun for all particles final states
         sun_part_pos[1,*]*sun_part_vel[1,*] + $
         sun_part_pos[2,*]*sun_part_vel[2,*]) / r_sun
       gvalue, Line_data.line, Vrad * 1000., r_sun / 149597871., Line_data.wavelength, Line_data.intensity, g
@@ -226,7 +224,7 @@ restore_aloft          = 1                                 ; restore a loc array
       airborn_packets = where(loc[4,*] ne 0., number_airborn, /NULL)
       if number_airborn gt 0 then begin
         penum = illumination(fltarr( number_airborn ), loc[0,airborn_packets], loc[1,airborn_packets], loc[2,airborn_packets])
-        g[airborn_packets] = g[airborn_packets] * penum                         ; Only sunlit packets emit
+        g[airborn_packets] = g[airborn_packets] * penum                                   ; Only sunlit packets emit
       endif
       
       ; Write the images
@@ -260,18 +258,19 @@ restore_aloft          = 1                                 ; restore a loc array
         ; add another fits binary table extention with this pointing info
           if keyword_set(Boresight_Pixel) then begin
             Pointing_info = {Pointing, Boresight_Pixel:Boresight_Pixel, Aperture_Corners:Aperture_Corners}
-            mwrfits, Pointing_info, strcompress(directory+Output_title+'.fit') ; Append the pointing info into FITS extension 2
+            mwrfits, Pointing_info, strcompress(directory+Output_title+'.fit')    ; Append the pointing info into FITS extension 2
           endif
         
         airborn_packets = where(loc[4,*] ne 0., number_airborn, /NULL)
         loc_aloft = loc[*,airborn_packets]   
         saved_at_time = ephemeris_time
         save, saved_at_time, loc_aloft, filename = directory + Output_title+'_loc_aloft.sav'
+        FILE_DELETE, restore_aloft_filename                                       ; Delete earlier time's loc_aloft save file to conserve disk space
       return  
-  endif
+  endif ; end section that restores an earlier integration from file and continues integrating it
   
   FOR loop_number = 0, loop_times - 1 do begin ;How many times the program should loop to reduce statistical noise
-    loop_number = fix(loop_number)                                                 ; convert the loop number to an integer 
+    loop_number = fix(loop_number)                                                ; Convert the loop number to an integer 
   
     loc = fltarr(10, Number_of_particles) ;Create a massive array of all particles
       ; loc(0,*) will be the x coords of all the particles in body radii 
@@ -339,10 +338,10 @@ restore_aloft          = 1                                 ; restore a loc array
     ; Compute scattering rates for each packet in the exosphere
       final_time = loc[9,*] - loc[8,*]
       CSPICE_SPKEZR, body, ephemeris_time - REFORM(final_time), 'J2000', 'NONE', 'Sun', sun_state, ltime
-      sun_part_pos = loc[0:2,*] + sun_state[0:2,*]  ;Calculate the vectors from the sun to the particles    
+      sun_part_pos = loc[0:2,*] + sun_state[0:2,*]                                       ; Calculate the vectors from the sun to the particles    
       sun_part_vel = loc[5:7,*] + sun_state[3:5,*]
-      r_sun = sqrt((sun_part_pos[0,*]^2. + sun_part_pos[1,*]^2. + sun_part_pos[2,*]^2.))  ;Particle distance from the Sun (units of km)
-      Vrad = (sun_part_pos[0,*]*sun_part_vel[0,*] + $ ;radial velocity in KM/S WRT the Sun for all particles final states  
+      r_sun = sqrt((sun_part_pos[0,*]^2. + sun_part_pos[1,*]^2. + sun_part_pos[2,*]^2.)) ; Particle distance from the Sun (units of km)
+      Vrad = (sun_part_pos[0,*]*sun_part_vel[0,*] + $                                    ; Radial velocity in KM/S WRT the Sun for all particles final states  
               sun_part_pos[1,*]*sun_part_vel[1,*] + $
               sun_part_pos[2,*]*sun_part_vel[2,*]) / r_sun
       gvalue, Line_data.line, Vrad * 1000., r_sun / 149597871., Line_data.wavelength, Line_data.intensity, g         
@@ -381,16 +380,16 @@ restore_aloft          = 1                                 ; restore a loc array
     
     ; Write an array of exosphere's particle content in the body fixed frame:
       cspice_sxform, 'J2000', Strcompress('IAU_'+body), ephemeris_time, xform
-      bstate = transpose( xform ) # Loc[[0,1,2,5,6,7],*]                        ; [x,y,z,vx,vy,vz] in the body fixed frame
+      bstate = transpose( xform ) # Loc[[0,1,2,5,6,7],*]                              ; [x,y,z,vx,vy,vz] in the body-fixed frame
       ;g, loc[4,*] and atoms_per_packet are all needed to view things
     
     print, 'Finished Particle Integration for Loop Number', Loop_number+1
   endfor
   
-  ; If we're simulating a time series, then we may want to initialize subsequent runs here. Save things so we can use this completed integration as a starting point
+  ; If we're simulating a time progression after some event, then we may want to initialize subsequent runs here. Save things so we can use this completed integration as a starting point
     if keyword_set(restore_aloft) then begin 
       saved_at_time = ephemeris_time
-      save, saved_at_time, loc_aloft, filename = directory+Output_title+'_loc_aloft.sav'
+      save, saved_at_time, loc_aloft, filename = directory+Output_title+'_loc_aloft.sav'      
     endif  
 
   ; Average (mean) the brightness and column density over the number of model runs in the above loop 
@@ -439,10 +438,16 @@ restore_aloft          = 1                                 ; restore a loc array
   
   ; Output_display can define spacecraft instrument pointing info, if there's any such information present
   ; add another fits binary table extention with this pointing info
+
     if keyword_set(Boresight_Pixel) then begin
       Pointing_info = {Pointing, Boresight_Pixel:Boresight_Pixel, Aperture_Corners:Aperture_Corners}
       mwrfits, Pointing_info, strcompress(directory+Output_title+'.fit') ; Append the pointing info into FITS extension 2
     endif  
+    
+tv, bytscl(Model_Image_CD)
+print, max(Model_Image_CD), total(Model_Image_CD)
+print, max(Model_Image_R), total(Model_Image_R)
+stop
 
   CLEANPLOT, /silent
   print,'Done, Number of model loops =', Loop_number

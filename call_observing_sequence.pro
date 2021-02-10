@@ -2,13 +2,13 @@ Pro Call_observing_sequence, Display_Correlation_Results = Display_Correlation_R
 
 if keyword_set(Display_Correlation_Results) then begin
   ;files = FILE_SEARCH('C:\IDL\Generic Model V2\read_write\Correlation_results\*_Round_4.sav')
-  files = FILE_SEARCH('C:\IDL\Generic Model V2\read_write\Correlation_results\*_Round_5.sav')
+  files = FILE_SEARCH('C:\IDL\Generic Model V2\read_write\Correlation_results\*_Event2_Round_0.sav')
   ;files = FILE_SEARCH('C:\IDL\Generic Model V2\read_write\Correlation_results\*Round1.sav')
   Correlations_Na = fltarr(n_elements(files)) & Correlations_Mg = fltarr(n_elements(files))
   for l = 0, n_elements(files)-1 do begin
     restore, files[l], /verbose
     correlations_Na[l] = correl_Na
-    correlations_Mg[l] = correl_Mg
+    ;correlations_Mg[l] = correl_Mg
   endfor
   junk = max(correlations_Na, loc)
   print, [strmid(transpose(files[reverse(SORT(correlations_Na))]), 66, strpos(transpose(files[reverse(SORT(correlations_Na))]),'_corr') - 66), $
@@ -129,17 +129,28 @@ endif
 ;                                'Point_[100,15]', 'Point_[115,15]' ]   ; index by k
 
 
-; round 6 (runtime = ??? Full resolution)
-Meteor_impact_UTC_array    = ['2011-08-04 02:15:00']                         ; index by i
-Plume_temperature_array    = ['3502K', '5000K']                              ; index by j
-loop_times_array           = [100, 80]                                       ; index by j
-Surface_distribution_array = ['Point_[100,0]', 'Point_[115,0]', 'Point_[100,15]', 'Point_[115,15]' ]   ; index by k
+;; round 6 (runtime = ??? Full resolution)
+;  Meteor_impact_UTC_array    = ['2011-08-04 02:15:00']                         ; index by i
+;  Plume_temperature_array    = ['3502K', '5000K']                              ; index by j
+;  loop_times_array           = [100, 80]                                       ; index by j
+;  Surface_distribution_array = ['Point_[100,0]', 'Point_[115,0]', 'Point_[100,15]', 'Point_[115,15]' ]   ; index by k
+
+; Event 2 round 0 (runtime = ??? Full resolution)
+;  Meteor_impact_UTC_array    = ['2013-04-13 13:15:00', '2013-04-13 13:25:00', '2013-04-13 13:35:00', '2013-04-13 13:45:00']                         ; index by i
+;  Plume_temperature_array    = ['10000K']                              ; index by j
+;  loop_times_array           = [70]                                    ; index by j
+;  Surface_distribution_array = ['Point_[150, 0]', 'Point_[180, 0]', 'Point_[210, 0]', 'Point_[240, 0]', 'Point_[270, 0]' ]   ; index by k
+
+  Meteor_impact_UTC_array    = ['2013-04-13 13:35:00', '2013-04-13 13:40:00', '2013-04-13 13:45:00']                         ; index by i
+  Plume_temperature_array    = ['10000K']                              ; index by j
+  loop_times_array           = [20]                                    ; index by j
+  Surface_distribution_array = ['Point_[255, 0]', 'Point_[270, 0]', 'Point_[270, 20]' ]   ; index by k
 
   for i = 0, N_elements(Meteor_impact_UTC_array)-1 do begin
     for j = 0, N_elements(Plume_temperature_array)-1 do begin
       for k = 0, N_elements(Surface_distribution_array)-1 do begin
-        Observing_Sequence, Meteor_impact_UTC = Meteor_impact_UTC_array[i], Plume_Temperature = Plume_Temperature_array[j], $
-                            Surface_distribution = Surface_distribution_array[k], loop_times = loop_times_array[j]
+        Observing_Sequence_Event_2, Meteor_impact_UTC = Meteor_impact_UTC_array[i], Plume_Temperature = Plume_Temperature_array[j], $
+                                    Surface_distribution = Surface_distribution_array[k], loop_times = loop_times_array[j]
       endfor
     endfor
   endfor
