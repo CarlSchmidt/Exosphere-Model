@@ -85,7 +85,7 @@ Line               = 'Na-D'                                ; Emission line to mo
                                                            ;          'Mg-2853'  
                                                            ;          'K-D'                                             
 if keyword_set(Speed_distribution_this_run) then Speed_distribution = Speed_distribution_this_run else $            
-Speed_distribution = 'Shematovich'                         ; Set the speed distribution the particles will be released with
+Speed_distribution = 'Maxwellian_1200K'                    ; Set the speed distribution the particles will be released with
                                                            ; Options: 'Maxwellian_3000K'  where temperature is variable
                                                            ;          'MBF_3000K'         where temperature is variable 
                                                            ;                              Maxwell-Bolzmann Flux Dist. (V^3)
@@ -443,11 +443,11 @@ restore_aloft          = 1                                 ; restore a loc array
       Pointing_info = {Pointing, Boresight_Pixel:Boresight_Pixel, Aperture_Corners:Aperture_Corners}
       mwrfits, Pointing_info, strcompress(directory+Output_title+'.fit') ; Append the pointing info into FITS extension 2
     endif  
-    
-tv, bytscl(Model_Image_CD)
-print, max(Model_Image_CD), total(Model_Image_CD)
-print, max(Model_Image_R), total(Model_Image_R)
-stop
+;    
+;tv, bytscl(Model_Image_CD)
+;print, max(Model_Image_CD), total(Model_Image_CD)
+;print, max(Model_Image_R), total(Model_Image_R)
+;stop
 
   CLEANPLOT, /silent
   print,'Done, Number of model loops =', Loop_number

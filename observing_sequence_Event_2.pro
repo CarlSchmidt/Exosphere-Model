@@ -7,9 +7,9 @@ Pro Observing_Sequence_Event_2, Meteor_impact_UTC = Meteor_impact_UTC, Plume_Tem
 
 ; Current Run
       Meteor_impact_UTC             = '2013-04-13 13:35:00'       ; time of the impact
-      Plume_Temperature             = '3000K'                    ; temperature of the impact vapour
+      Plume_Temperature             = '4000K'                    ; temperature of the impact vapour
       Surface_distribution = 'Point_[270, 10]'                     ; Location of the impactor
-      loop_times                    = 2.                         ; Bear minimum for any reasonable S/N (was 90 in Event 1)
+      loop_times                    = 10.                         ; Bear minimum for any reasonable S/N (was 90 in Event 1)
       Na_Lofted                     = 1.e25                       ; seems like a lot
       Brightness_multiplier_Na      = 2.500   
 
@@ -18,8 +18,8 @@ COMMON Model_shared, Body, Ephemeris_time, Seed, Directory, Particle_data, Line_
 
 Na_Data_Color  = 'Orange'
 Na_Model_Color = 'Orange'
-key_frames_Na  = [indgen(100)] * 8
-;key_frames_Na  = [indgen(50)] * 16
+;key_frames_Na  = [indgen(100)] * 8
+key_frames_Na  = [indgen(50)] * 16
 ;key_frames_Na  = [indgen(10)] * 80
 key_frames_Na  = key_frames_Na[UNIQ(key_frames_Na, SORT(key_frames_Na))]
 
