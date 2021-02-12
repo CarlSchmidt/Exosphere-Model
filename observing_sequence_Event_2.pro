@@ -6,21 +6,22 @@ Pro Observing_Sequence_Event_2, Meteor_impact_UTC = Meteor_impact_UTC, Plume_Tem
 ; Background: 1.e26 1200K MBF, 100 loops, 0.166 Days duration = 2 days runtime (isotropic dayside?)
 
 ; Current Run
-      Meteor_impact_UTC             = '2013-04-13 13:35:00'       ; time of the impact
-      Plume_Temperature             = '4000K'                    ; temperature of the impact vapour
-      Surface_distribution = 'Point_[270, 10]'                     ; Location of the impactor
-      loop_times                    = 10.                         ; Bear minimum for any reasonable S/N (was 90 in Event 1)
-      Na_Lofted                     = 1.e25                       ; seems like a lot
-      Brightness_multiplier_Na      = 2.500   
+  Meteor_impact_UTC             = '2013-04-13 13:33:00'       ; time of the impact
+  Plume_Temperature             = '10000K'                    ; temperature of the impact vapour
+  Surface_distribution = 'Point_[235, 40]'                    ; Location of the impactor
+  loop_times                    = 4.                          ; Bear minimum for any reasonable S/N (was 90 in Event 1)
+  Na_Lofted                     = 1.e25                       ; seems like a lot
+  Brightness_multiplier_Na      = 12.5   
 
 COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in_frame, viewpoint, FOV, N_ticks, Tickstep, Observatory, Above_Ecliptic, Boresight_Pixel, Aperture_Corners
 COMMON Model_shared, Body, Ephemeris_time, Seed, Directory, Particle_data, Line_data, Debug
 
 Na_Data_Color  = 'Orange'
 Na_Model_Color = 'Orange'
-;key_frames_Na  = [indgen(100)] * 8
-key_frames_Na  = [indgen(50)] * 16
-;key_frames_Na  = [indgen(10)] * 80
+key_frames_Na  = [indgen(110)] * 8
+;key_frames_Na  = [ [indgen(32)] * 8, [indgen(12)] * 40 + 256]
+;key_frames_Na  = [indgen(51)] * 16
+;key_frames_Na  = [indgen(27)] * 8
 key_frames_Na  = key_frames_Na[UNIQ(key_frames_Na, SORT(key_frames_Na))]
 
   Na_scale = alog10([10^(-0.25), 10^1.75]) ; range to logrithmically scale the Na images in KiloRayleighs
@@ -41,12 +42,10 @@ key_frames_Na  = key_frames_Na[UNIQ(key_frames_Na, SORT(key_frames_Na))]
 ; Load UVVS DDR from https://pds-geosciences.wustl.edu/messenger/mess-e_v_h-mascs-3-virs-cdr-caldata-v1/messmas_2101/data/ddr/ob2/uvvs_atmosphere/07/
   UVVS_DDR_Na      = read_mascs_ddr(Directory+'MESSENGER_UVVS\ud_09_ns_na.dat') 
   UVVS_UTC_TIME_Na = string(UVVS_DDR_Na.UTC_TIME)  ; convert time from byte to string YYDOYTHH:MM:SS.00
-  ;UVVS_DDR_Mg      = read_mascs_ddr(Directory+'MESSENGER_UVVS\ud_02_ns_mg.dat') 
-  ;UVVS_UTC_TIME_Mg = string(UVVS_DDR_Mg.UTC_TIME)  ; convert time from byte to string YYDOYTHH:MM:SS.00
 
 ; define the time window to be plotted  
-  ;plot_times       = ['2011-08-04 02:08', '2011-08-04 07:15'] ; times to plot (UTC)
-  plot_times       = ['2013-04-13 13:40', '2013-04-13 15:10'] ; times to plot (UTC)
+  ;plot_times       = ['2013-04-13 13:40', '2013-04-13 15:10'] ; times to plot (UTC)
+  plot_times       = ['2013-04-13 13:33', '2013-04-13 15:10'] ; times to plot (UTC)
   cspice_utc2et, plot_times[0], start_ET
   cspice_utc2et, plot_times[1], stop_ET
 
@@ -74,15 +73,6 @@ key_frames_Na  = key_frames_Na[UNIQ(key_frames_Na, SORT(key_frames_Na))]
   PDS_ET_Na     = PDS_ET_Na[duration[Keep_Na]]
   PDS_JD_Na     = PDS_JD_Na[duration[Keep_Na]]
   Na_UTC_string = Na_UTC_string[duration[Keep_Na]]
-
-; Filter frames that the UVVS team (just Tim really, but I believe him) says are "bad data"
-;  bad_Na = where( (Na_UTC_string eq '2011-08-04 02:25:41.43') )
-;  bad_Mg = where( (Mg_UTC_string eq '2011-08-04 03:38:33.67') or $
-;                  (Mg_UTC_string eq '2011-08-04 04:04:09.67') or $
-;                  (Mg_UTC_string eq '2011-08-04 04:54:33.67') or $ 
-;                  (Mg_UTC_string eq '2011-08-04 05:59:21.67') )
-;  remove, Bad_Na, DDR_Na, DDR_Na_err, PDS_ET_Na, PDS_JD_Na, Na_UTC_string
-;  remove, Bad_Mg, DDR_Mg, DDR_Mg_err, PDS_ET_Mg, PDS_JD_Mg, Mg_UTC_string
 
 ; Load the background model's from Tim Cassidy and Matt Burger
   readcol, Directory+'MESSENGER_UVVS\Background_Model\Na_time_series_1884.txt', Na_BG_UTC_string_1884, Na_Obs_BG_1884, Na_BG_1884, format = 'A,F,F'
@@ -189,11 +179,11 @@ key_frames_Na  = key_frames_Na[UNIQ(key_frames_Na, SORT(key_frames_Na))]
           cgPolygon, [transpose(Pointing_Na.APERTURE_CORNERS[0,*]), Pointing_Na.APERTURE_CORNERS[0,0]]*platescale/3600.+range[0], $
                      [transpose(Pointing_Na.APERTURE_CORNERS[1,*]), Pointing_Na.APERTURE_CORNERS[1,0]]*platescale/3600.+range[0], COLOR='Snow', /fill
           
-          if keyword_set(debug) then begin
-            print_struct, DDR_Na_subset[i], ['TARGET_LOCAL_TIME', 'TARGET_ALTITUDE']
-            print, Pointing_Na.APERTURE_CORNERS*platescale/3600.+range[0]
-            print, 'UTC: ', Na_UTC_string[i]
-          endif
+;          if keyword_set(debug) then begin
+;            print_struct, DDR_Na_subset[i], ['TARGET_LOCAL_TIME', 'TARGET_ALTITUDE']
+;            print, Pointing_Na.APERTURE_CORNERS*platescale/3600.+range[0]
+;            print, 'UTC: ', Na_UTC_string[i]
+;          endif
 
          ;----------------------------Generate the Latitude & Longitude grid to overlay on the column density----------------------------------
          ; Find the angular size
@@ -253,14 +243,14 @@ key_frames_Na  = key_frames_Na[UNIQ(key_frames_Na, SORT(key_frames_Na))]
            
        ; Plot the time-series panel
          P = [pos[0,2]+0.065, pos[3,2]-.3, pos[2,3]-0.065, pos[3,2]+.03]
-         cgplot, PDS_JD_Na, DDR_Na, /nodata, /xstyle, XTICKUNITS = ['Time'], XTICKFORMAT='LABEL_DATE', xtitle = strmid(Na_UTC_string[0], 0, 10)+' UTC', $
+         cgplot, PDS_JD_Na, DDR_Na, /nodata, /xstyle, XTICKFORMAT='LABEL_DATE', XTICKUNITS = ['Minutes'], Xminor=5, XTICKINTERVAL=15, xtitle = strmid(Na_UTC_string[0], 0, 10)+' UTC', $
             Position=P, yr = [-1., 27.5], charsize = 1, /noerase, ERR_YHIGH = DDR_Na_err, ERR_Ylow = DDR_Na_err, /ERR_CLIP, ERR_WIDTH = 0.
        
         ; plot the rolling time ticker
            cgplot, [PDS_JD_Na[i], PDS_JD_Na[i]], [-10, 50], thick = 0.5, /overplot
           
         ; now the UVVS data
-           cgplot, PDS_JD_Na, DDR_Na, color = Na_Data_Color, psym=16, /xstyle, XTICKUNITS = ['Time'], symsize = 0.5 , $
+           cgplot, PDS_JD_Na, DDR_Na, color = Na_Data_Color, psym=16, XTICKUNITS = ['Minutes'], Xminor=5, XTICKINTERVAL=15, /xstyle, symsize = 0.5 , $
            Position=P, yr = [-1., 27.5], charsize = 1, /noerase, ERR_YHIGH = DDR_Na_err, ERR_Ylow = DDR_Na_err, /ERR_CLIP, ERR_WIDTH = 0., xtickformat = '(A1)
 
         ; plot the transient cloud
@@ -273,8 +263,8 @@ key_frames_Na  = key_frames_Na[UNIQ(key_frames_Na, SORT(key_frames_Na))]
 
         ; Annotate what's going on here  
           cgtext, PDS_JD_Na[20], 24.5, 'UVVS Na', color = Na_Data_Color, charsize = 1
-          cgtext, mean(!x.crange), 24, 'Simulated Meteor Impact: ' + strmid(Meteor_impact_UTC, 12, 4) + ' at ' + $
-            strmid(Surface_distribution, 7, 3) + cgsymbol('deg') + ' W Lon, '+ strmid(Surface_distribution, 12, 1) + cgsymbol('deg') + ' Lat', color = 'black', charsize = 1, alignment = .5
+          cgtext, mean(!x.crange), 24, 'Simulated Meteor Impact: ' + strmid(Meteor_impact_UTC, 11, 5) + ' at ' + $
+            strmid(Surface_distribution, 7, 3) + cgsymbol('deg') + ' W Lon, '+ strmid(Surface_distribution, 11, 3) + cgsymbol('deg') + ' Lat', color = 'black', charsize = 1, alignment = .5
           cgtext, mean(!x.crange), 21, string(brightness_multiplier_Na * sxpar(Na_header, 'UPWARD_F') * 22.989769*1.e-3 / 6.02214e23, format = '(F4.2)') + ' kg Na, ' + Plume_Temperature + ' MBF', $
             color = 'black', charsize = 1, alignment = .5
           cgtext, PDS_JD_Na[0]-.01, 15, 'Brightness [kR]', orientation = 90, charsize = 1.

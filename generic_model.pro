@@ -95,7 +95,7 @@ Speed_distribution = 'Maxwellian_1200K'                    ; Set the speed distr
                                                            ;                              and Vmax specified in km/s 
                                                            ;          'Shematovich'       Distribution from the Shematovich 2013 paper, requires an associated input file 
 if keyword_set(Surface_distribution_this_run) then Surface_distribution = Surface_distribution_this_run else $   
-Surface_distribution = 'dayside'                    ; Set the surface distribution the particles will be released with
+Surface_distribution = 'Dayside'                    ; Set the surface distribution the particles will be released with
                                                            ; Options: 'Global'            Everywhere uniform
                                                            ;          'Dayside'           Uniform 2pi steradians, centered in sub-solar longitude [-90,90 lat]
                                                            ;          'Point_[lon,lat]'   Specified W. Lon & Lat [degrees]                 
@@ -129,12 +129,12 @@ Debug                  = 0                                 ; Set to 1 to output 
 exobase_height         = 0.d                               ; Exobase altitude above the surface, units of KM
 if keyword_set(Loop_times_this_run) then Loop_times=Loop_times_this_run else $ 
 Loop_times             = 3                                 ; How many loops the model should run, runs are stacked and averaged so this sets statistical noise  
-FOV                    = 3600.*45.                         ; ARCSECONDS to a side. Field of View to display for output images that are in SKY COORDINATES
+FOV                    = 3600.*80.                         ; ARCSECONDS to a side. Field of View to display for output images that are in SKY COORDINATES
 N_ticks                = 10.                               ; Number of tick marks in the axis of the sky coordinate image
 tickstep               = 200.                              ; Axis tick step size in Body radii for the 'Above ecliptic' viewings  
 
 ;===========================================KEYWORDS=======================================================================
-Bounce                 = 0                                 ; Particles re-impacting the surface can bounce (=1) or stick (=0) 
+Bounce                 = 1                                 ; Particles re-impacting the surface can bounce (=1) or stick (=0) 
 Label_Phase            = 0                                 ; Display the body's phase angle as pixels? MAJOR ISSUE: Needs rotation to plane of sky. 
 Above_Ecliptic         = 0                                 ; Also writes an output image viewed from above the ecliptic plane with "Plot_range" field of view (longer run times)
 restore_aloft          = 1                                 ; restore a loc array to start the integration
@@ -443,11 +443,6 @@ restore_aloft          = 1                                 ; restore a loc array
       Pointing_info = {Pointing, Boresight_Pixel:Boresight_Pixel, Aperture_Corners:Aperture_Corners}
       mwrfits, Pointing_info, strcompress(directory+Output_title+'.fit') ; Append the pointing info into FITS extension 2
     endif  
-;    
-;tv, bytscl(Model_Image_CD)
-;print, max(Model_Image_CD), total(Model_Image_CD)
-;print, max(Model_Image_R), total(Model_Image_R)
-;stop
 
   CLEANPLOT, /silent
   print,'Done, Number of model loops =', Loop_number

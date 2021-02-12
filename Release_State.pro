@@ -83,13 +83,13 @@ COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in
 ; ============================================== LAUNCH COORDINATES =================================================================================================
 ; Get the particle launch locations in body-centered J2000 coordinates
   CASE 1 OF
-    STRMATCH(surface_distribution, 'Global'): BEGIN                                                           ; Generate isotropic latitudes and longitudes for all particles
+    STRMATCH(surface_distribution, 'Global', /FOLD_CASE): BEGIN                                                           ; Generate isotropic latitudes and longitudes for all particles
         lat = asin(1.d - 2.d*randomu(seed, N_particles, /double))             ; gives a random number, -90 to 90 degrees (in radians) weighted towards the equator (more surface area per unit latitude)
         lon = 360.d*randomu(seed, N_particles, /double) /!RADEG               ; gives random longitudes 0 to 360 (in radians)
         cspice_pgrrec, body, lon, lat, replicate(0.D, N_particles), re, flat, release_points_body_fixed; convert these to cartesian, body fixed coords untis of planetary radii here, not km
         release_points_J2000 = release_points_body_fixed / re                 ; since these are random and isotropic in x, y, z, the reference frame does not matter, use body radii coordinates
     END  
-    STRMATCH(surface_distribution, 'Dayside'): BEGIN
+    STRMATCH(surface_distribution, 'Dayside', /FOLD_CASE): BEGIN
       release_points_J2000      = dblarr(3, N_Particles)
       release_points_Body_fixed = dblarr(3, N_Particles)
       cspice_subpnt, 'Near point: ellipsoid', body, ephemeris_time, 'IAU_'+body, 'LT', viewpoint, sub_observer_point_planet_frame, trgepc, srfvec      
@@ -128,7 +128,7 @@ COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in
         loc[4,*] = normalize_for_SZA * SZA_map
         
     END
-    STRMATCH(surface_distribution, 'Point*'): BEGIN
+    STRMATCH(surface_distribution, 'Point*', /FOLD_CASE): BEGIN
        
         release_points_J2000      = dblarr(3, N_Particles)
         release_points_Body_fixed = dblarr(3, N_Particles) 
@@ -161,7 +161,7 @@ COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in
         endfor
 
     END
-    STRMATCH(surface_distribution, 'From_Map*'): BEGIN
+    STRMATCH(surface_distribution, 'From_Map*', /FOLD_CASE): BEGIN
       map_filename = 'C:\IDL\Generic Model V2\read_write\Surface_reservoir\Mean_Reimpacting_Flux_Map.fit'
       map = mrdfits(map_filename) ; TAKE CARE THAT LONGITUDE IS IN THE PROPER CONVENTION HERE: planetographic WEST longitude is the x axis (left-handed longitude)      
       
