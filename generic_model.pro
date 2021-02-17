@@ -114,12 +114,10 @@ Output_title           = 'Test'                            ; Title of the model'
                                                            ; FITS extension 1 contains the metadata with the input parameters. 
 Number_of_particles    = long(2^15-1)                      ; Number of packets of atoms in the simulation, do not exceed 32766 = 2^15-1
 if keyword_set(Time_range_this_run) then Time_range=Time_range_this_run else $ 
-Time_range             = [0.,0.25]                 ; When to start and stop releasing particles from the planet [End, Begin] days ago e.g., [0.0, 0.5]                     
-;Time_range             = [6./24.,7./24.]                 ; When to start and stop releasing particles from the planet [End, Begin] days ago e.g., [0.0, 0.5]
+Time_range             = [0.,0.25]                         ; When to start and stop releasing particles from the planet [End, Begin] days ago e.g., [0.0, 0.5]                     
                                                            ; A single element array represents a 1 sec 'pulse' of particles occuring [pulse_time] days ago
 timestep               = 50.                               ; Time step in seconds from the RK4 integrator, use < = 50 s at Mercury 
-Step_Type              = 'Fixed'                           ; Flavor of Runge-Kutta step to use: 'Fixed' or 'Adaptive', timestep is the initial guess for the later. NOTE BUG: Adaptive timesteps w/ Bouncing is BROKEN
-Plot_range             = 1600.                             ; for 'Above ecliptic' viewing only. Defines the plate scale, the spatial distance of each axis to be plotted in BODY RADII 
+Step_Type              = 'Fixed'                           ; Flavor of Runge-Kutta step to use: 'Fixed' or 'Adaptive', timestep is the initial guess for the later. !!! NOTE BUG: ADAPTIVE TIMESTEPS W/ BOUNCING IS BROKEN!
 Output_Size_In_Pixels  = [256., 256., 256.]                ; Number of pixels on the [x,y,z] axis of the plot window (keep them all the same for sanity) 
 Center_in_frame        = [1./2., 1./2., 1./2.]             ; [x,y,z] position of Body center within the output field of view, [1./2., 1./2., 1./2.] = centered 
 if keyword_set(Upward_flux_at_exobase_this_run) then Upward_flux_at_exobase=Upward_flux_at_exobase_this_run else $          
@@ -132,11 +130,12 @@ Loop_times             = 3                                 ; How many loops the 
 FOV                    = 3600.*80.                         ; ARCSECONDS to a side. Field of View to display for output images that are in SKY COORDINATES
 N_ticks                = 10.                               ; Number of tick marks in the axis of the sky coordinate image
 tickstep               = 200.                              ; Axis tick step size in Body radii for the 'Above ecliptic' viewings  
-
+thermal_accom_coeff    = 0.                                ; For Bounce keyword = 1 only. Thermal accomodation towards the local surface temperature,  (0.62 Hunten et al. 1988)
+Plot_range             = 1600.                             ; For 'Above ecliptic' viewing only. Defines the plate scale, the spatial distance of each axis to be plotted in BODY RADII
 ;===========================================KEYWORDS=======================================================================
-Bounce                 = 1                                 ; Particles re-impacting the surface can bounce (=1) or stick (=0) 
+Bounce                 = 0                                 ; Particles re-impacting the surface can bounce (=1) or stick (=0) 
 Label_Phase            = 0                                 ; Display the body's phase angle as pixels? MAJOR ISSUE: Needs rotation to plane of sky. 
-Above_Ecliptic         = 0                                 ; Also writes an output image viewed from above the ecliptic plane with "Plot_range" field of view (longer run times)
+Above_Ecliptic         = 0                                 ; Writes additional output image viewed from above the ecliptic plane with "Plot_range" seeting the field of view (longer run times)
 restore_aloft          = 1                                 ; restore a loc array to start the integration
           
 ;***********************************************OUTPUTS*************************************************
@@ -207,7 +206,7 @@ restore_aloft          = 1                                 ; restore a loc array
     if (Ephemeris_time - saved_at_time) le 0. then stop                                   ; Restored integration always runs to an earlier time then the new simulation, never later
     loc_aloft[9,*] = loc_aloft[9,*] + (Ephemeris_time - saved_at_time)
     loc = loc_aloft
-    RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_packet, timestep, step_type
+    RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_packet, timestep, step_type, thermal_accom_coeff = thermal_accom_coeff
     
     ; Compute scattering rates for each packet in the exosphere
       final_time = loc[9,*] - loc[8,*]
@@ -331,7 +330,7 @@ restore_aloft          = 1                                 ; restore a loc array
       
     ; Integrate the equations of motion
       Print, 'Starting particle motion integration. . . '
-      RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_packet, timestep, step_type
+      RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_packet, timestep, step_type, thermal_accom_coeff = thermal_accom_coeff
       ; The "loc" array now contains final exosphere particle locations. 
       ; The "reimpact_loc" array now contains locations of surface particles in the body-fixed / local time frame
 
@@ -414,6 +413,8 @@ restore_aloft          = 1                                 ; restore a loc array
     SXADDPAR, Header, 'Loop_times', Loop_times, ' Number of model loops'
     SXADDPAR, Header, 'N_particles', Number_of_particles, ' # of particles / loop'
     SXADDPAR, Header, 'Runtime', (systime(/seconds)-start_time)/3600., ' Simulation time [hours]'
+    SXADDPAR, Header, 'Bounce', Bounce, ' Particles bounce off the surface'
+    SXADDPAR, Header, 'T_accom', Thermal_accom_coeff, ' Thermal accomodation when bouncing'
     Case n_elements(time_range) of
       1: SXADDPAR, Header, 'time_range', time_range[0], ' Duration of particle integration [days]'
       2: ;SXADDPAR, Header, 'time_range', string(time_range[0]), ' Duration of particle integration [days]' need to write a string or a scalar here, what to do?

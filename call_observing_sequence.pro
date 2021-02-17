@@ -146,11 +146,10 @@ endif
 ;  loop_times_array           = [20]                                    ; index by j
 ;  Surface_distribution_array = ['Point_[255, 0]', 'Point_[270, 0]', 'Point_[270, 20]' ]   ; index by k
 
-  Meteor_impact_UTC_array    = ['2013-04-13 13:25:00', '2013-04-13 13:30:00']                         ; index by i
-  Plume_temperature_array    = ['10000K']                              ; index by j
-  loop_times_array           = [40]                                    ; index by j
-  Surface_distribution_array = ['Point_[190, 0]','Point_[190, 30]', 'Point_[200, 0]', 'Point_[200, 30]', 'Point_[255, 30]', 'Point_[280, 0]']   ; index by k
-;Surface_distribution_array = ['Point_[200, 30]', 'Point_[255, 30]', 'Point_[280, 0]']   ; index by k
+  Meteor_impact_UTC_array    = ['2013-04-13 13:35:00']                         ; index by i
+  Plume_temperature_array    = ['10000K', '15000K']                              ; index by j
+  loop_times_array           = [40,40]                                    ; index by j
+  Surface_distribution_array = ['Point_[235, 50]','Point_[235, 30]','Point_[245, 30]','Point_[225, 30]']   ; index by k
   for i = 0, N_elements(Meteor_impact_UTC_array)-1 do begin
     for j = 0, N_elements(Plume_temperature_array)-1 do begin
       for k = 0, N_elements(Surface_distribution_array)-1 do begin
@@ -160,5 +159,6 @@ endif
       endfor
     endfor
   endfor
+Observing_Sequence_Event_2
 
 end

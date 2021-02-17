@@ -149,7 +149,7 @@ function RK_4_step, loc, dt, ionizelife
   return, loc
 end
 
-pro RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_packet, timestep, step_type
+pro RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_packet, timestep, step_type, thermal_accom_coeff = thermal_accom_coeff
   COMMON Model_shared, Body, Ephemeris_time, Seed, Directory, Particle_data, Line_data, Debug
   COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in_frame, viewpoint, FOV, N_ticks, Tickstep, Observatory, Above_Ecliptic, Boresight_Pixel, Aperture_Corners
   COMMON Gravity, GM_Body, GM_Sun, GM_Parent
@@ -291,8 +291,6 @@ pro RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_pac
           diffmax = (diffmax ge abs(loc1[2,*]))*diffmax + (diffmax lt abs(loc1[2,*]))*abs(loc1[2,*])
           
           htemp   = h
-          
-          ;new way
           zererr  = where(errmax le 0)
           if zererr[0] ge 0 then begin
             errmax[zererr] = 1.
@@ -321,7 +319,7 @@ pro RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_pac
             h[insig] = h[insig]*10.
             calldone = where(h[insig]-t[moretogo[insig]] gt 0, N_calldone, /NULL)       
             if N_calldone ge 0 then loc[8,moretogo[insig[calldone]]] = loc[9,moretogo[insig[calldone]]]  ; These integrations are almost done, but the remaining timestep is too short to make any difference
-          endif ;no change in position
+          endif ; no change in position
           
       end ; Adaptive Step
     endcase
@@ -346,9 +344,8 @@ pro RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_pac
                                                             ; 4 = orbital longitude / TAA  (0 to 360)
                                                             ; 5 = fractional content       (0 to 1)
             reimpacts[5,*] = loc[4,moretogo[Hit_Body]] * atoms_per_packet                                               ; log the number of particles that reimpacted the surface over this timestep
-            if (N_reimpacts gt long(2^15 - 1)) then stop                                                                ; this condition in the for loop below needs testing
             
-            for i = 0, N_reimpacts - 1 do begin
+            for i = 0L, long(N_reimpacts - 1) do begin
               BF_State[*,i] = transpose( J2000_to_body_fixed_xform[*,*,i] ) # loc[0:5, moretogo[Hit_Body[i]]]           ; Body-Fixed cartesian states
               cspice_recpgr, Body, BF_State[0:2,i], Body_radius[0], flat, p_lon, p_lat, p_alt                           ; Particle coords planetographic longitude definition
               
@@ -397,7 +394,7 @@ pro RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_pac
                   reimpact_loc = [ [reimpact_loc], [reimpacts[*,stick_ind]] ]
 
               ; For those particles that bounce... 
-                if N_bounced gt 0 then begin
+                if N_bounced gt 0L then begin
 
                   ; indices within "loc" of particles within loc that we want to bounce
                     bounce_indicies = moretogo[Hit_Body[bounce_ind]]
@@ -407,10 +404,9 @@ pro RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_pac
                                                 body_radius[0] / rebin(loc[3, bounce_indicies], 3, N_bounced)
                                                            
                   ; Reset the particle velocities, with optional thermal acccomodation to the local surface temp     
-                    thermal_accomodation_coeff = 0.0  ;0.62 ;Hunten et al. 1988
                     V_thermal = sqrt(2.*1.3806503e-23*Local_surface_temps/particle_data.mass) * 1.e-3               ; surface thermal speed, in km/s
                     V_initial = sqrt(loc[5, bounce_indicies]^2+loc[6, bounce_indicies]^2+loc[7, bounce_indicies]^2) ; re-impact velocity
-                    V_final   = thermal_accomodation_coeff*V_thermal+(1.-thermal_accomodation_coeff)*V_initial      ; give it a new speed in km/sec WRT the surface                                    
+                    V_final   = thermal_accom_coeff*V_thermal+(1.-thermal_accom_coeff)*V_initial                    ; give it a new speed in km/sec WRT the surface                                    
   
                   ; Assign new trajectories, bounce trajectories are weighted a COSINE DEPENDENCE WRT the surface normal
                     r     = findgen(N_bounced) / N_bounced                        ; a zero to 1 array of n_particle increments
@@ -422,7 +418,7 @@ pro RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_pac
                     sum = TOTAL( distribution_function, /CUMULATIVE )             ; get the cumulative sum of the distribution over elements 0 to i, ie, the cumulative distribution function
                     sum = sum/max(sum)                                            ; normalize the CDF to a maximum of one
     
-                    for i = 1, N_bounced-1 do begin                               ; step through the CDF, I don't see a way to vectorize this
+                    for i = 1L, long(N_bounced-1) do begin                        ; step through the CDF, I don't see a way to vectorize this
                       inrange = where((r ge sum[i-1]) and (r lt sum[i]), count_ind, /null)
                       if count_ind gt 0 then theta[inrange] = i
                     endfor
@@ -451,7 +447,8 @@ pro RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_pac
                           loc[5:7,bounce_indicies[q]] = Velocity_vector_WRT_Absolute * V_final[q]   ; write the vector back into the loc array, and scale it velocity                  
                       endfor
                endif ; N_bounced gt 0
-               print, string(N_reimpacts, format = '(I6)'),' particles collided with the surface,', string(N_bounced, format = '(I6)'),' bounced (T-depen Sticking & Thermal Accommodation = 0.0)'
+               print, string(N_reimpacts, format = '(I6)'),' particles collided with the surface,', $
+                      string(N_bounced, format = '(I6)'),' bounced (T-depen Sticking & Thermal Accommodation = '+strcompress(thermal_accom_coeff)+')'
         ENDIF ELSE BEGIN                                              ; bounce keyword is not set
           loc[4,moretogo[Hit_Body]] = 0.                              ; set the fractional content of packets that hit the surface to zero
           loc[8,moretogo[Hit_Body]] = loc[9,moretogo[Hit_Body]]       ; set the time left in the integration to zero (because t = loc(9,*)-loc(8,*))
