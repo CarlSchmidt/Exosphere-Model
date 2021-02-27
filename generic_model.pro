@@ -130,10 +130,10 @@ Loop_times             = 3                                 ; How many loops the 
 FOV                    = 3600.*80.                         ; ARCSECONDS to a side. Field of View to display for output images that are in SKY COORDINATES
 N_ticks                = 10.                               ; Number of tick marks in the axis of the sky coordinate image
 tickstep               = 200.                              ; Axis tick step size in Body radii for the 'Above ecliptic' viewings  
-thermal_accom_coeff    = 0.                                ; For Bounce keyword = 1 only. Thermal accomodation towards the local surface temperature,  (0.62 Hunten et al. 1988)
+thermal_accom_coeff    = 0.2                               ; For Bounce keyword = 1 only. Thermal accomodation towards the local surface temperature,  (0.62 Hunten et al. 1988)
 Plot_range             = 1600.                             ; For 'Above ecliptic' viewing only. Defines the plate scale, the spatial distance of each axis to be plotted in BODY RADII
 ;===========================================KEYWORDS=======================================================================
-Bounce                 = 0                                 ; Particles re-impacting the surface can bounce (=1) or stick (=0) 
+Bounce                 = 1                                 ; Particles re-impacting the surface can bounce (=1) or stick (=0) 
 Label_Phase            = 0                                 ; Display the body's phase angle as pixels? MAJOR ISSUE: Needs rotation to plane of sky. 
 Above_Ecliptic         = 0                                 ; Writes additional output image viewed from above the ecliptic plane with "Plot_range" seeting the field of view (longer run times)
 restore_aloft          = 1                                 ; restore a loc array to start the integration
@@ -242,6 +242,8 @@ restore_aloft          = 1                                 ; restore a loc array
         SXADDPAR, Header, 'Loop_times', Loop_times, ' Number of model loops'
         SXADDPAR, Header, 'N_particles', Number_of_particles, ' # of particles / loop'
         SXADDPAR, Header, 'Runtime', (systime(/seconds)-start_time)/3600., ' Simulation time [hours]'
+        SXADDPAR, Header, 'Bounce', Bounce, ' Particles bounce off the surface'
+        SXADDPAR, Header, 'T_accom', Thermal_accom_coeff, ' Thermal accomodation when bouncing'
         Case n_elements(time_range) of
           1: SXADDPAR, Header, 'time_range', time_range[0], ' Duration of particle integration [days]'
           2: ;SXADDPAR, Header, 'time_range', string(time_range[0]), ' Duration of particle integration [days]' need to write a string or a scalar here, what to do?

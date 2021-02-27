@@ -1,20 +1,34 @@
-Pro Call_observing_sequence, Display_Correlation_Results = Display_Correlation_Results
+FUNCTION FUNC, P ; Brightness_multiplier_Na in, Na_Chisq out
+  COMMON Parameter_space, Meteor_impact_UTC, Plume_temperature, loop_times, Surface_distribution
+  
+  Observing_Sequence_Event_2, Meteor_impact_UTC = Meteor_impact_UTC, Plume_Temperature = Plume_Temperature, $
+    Surface_distribution = Surface_distribution, loop_times = loop_times, Brightness_multiplier_Na = P, Na_Chisq = Na_Chisq
+  Print, 'Brightness_multiplier_Na =', P, ' Na_Chisq =', Na_Chisq
+  RETURN, Na_Chisq
+END
 
-if keyword_set(Display_Correlation_Results) then begin
-  ;files = FILE_SEARCH('C:\IDL\Generic Model V2\read_write\Correlation_results\*_Round_4.sav')
-  files = FILE_SEARCH('C:\IDL\Generic Model V2\read_write\Correlation_results\*_Event2_Round_0.sav')
-  ;files = FILE_SEARCH('C:\IDL\Generic Model V2\read_write\Correlation_results\*Round1.sav')
-  Correlations_Na = fltarr(n_elements(files)) & Correlations_Mg = fltarr(n_elements(files))
-  for l = 0, n_elements(files)-1 do begin
-    restore, files[l], /verbose
-    correlations_Na[l] = correl_Na
-    ;correlations_Mg[l] = correl_Mg
-  endfor
-  junk = max(correlations_Na, loc)
-  print, [strmid(transpose(files[reverse(SORT(correlations_Na))]), 66, strpos(transpose(files[reverse(SORT(correlations_Na))]),'_corr') - 66), $
-          transpose(string(correlations_Na[reverse(SORT(correlations_Na))])), transpose(string(correlations_Mg[reverse(SORT(correlations_Na))]))], FORMAT='(A29,F10.5,F10.5)'
-  stop        
-endif
+PRO Call_observing_sequence, Display_Correlation_Results = Display_Correlation_Results
+  COMMON Parameter_space, Meteor_impact_UTC, Plume_temperature, loop_times, Surface_distribution
+  
+  if keyword_set(Display_Correlation_Results) then begin
+    ;files = FILE_SEARCH('C:\IDL\Generic Model V2\read_write\Correlation_results\*_Round_4.sav')
+    ;files = FILE_SEARCH('C:\IDL\Generic Model V2\read_write\Correlation_results\*_Event2_Round_0.sav') ;Actually event 3!!!!
+    files = FILE_SEARCH('C:\IDL\Generic Model V2\read_write\Correlation_results\*_Event_2_Round_0.sav')
+    ;files = FILE_SEARCH('C:\IDL\Generic Model V2\read_write\Correlation_results\*Round1.sav')
+    Correlations_Na = fltarr(n_elements(files)) & Correlations_Mg = fltarr(n_elements(files))
+    for l = 0, n_elements(files)-1 do begin
+      restore, files[l], /verbose
+      correlations_Na[l] = correl_Na
+      ;correlations_Mg[l] = correl_Mg
+    endfor
+    junk = max(correlations_Na, loc)
+;    print, [strmid(transpose(files[reverse(SORT(correlations_Na))]), 66, strpos(transpose(files[reverse(SORT(correlations_Na))]),'_corr') - 66), $
+;            transpose(string(correlations_Na[reverse(SORT(correlations_Na))])), transpose(string(correlations_Mg[reverse(SORT(correlations_Na))]))], FORMAT='(A29,F10.5,F10.5)'
+    print, [strmid(transpose(files[reverse(SORT(correlations_Na))]), 66, strpos(transpose(files[reverse(SORT(correlations_Na))]),'_corr') - 66), $
+            transpose(string(correlations_Na[reverse(SORT(correlations_Na))]))], FORMAT='(A29,F10.5)'
+  
+    stop        
+  endif
 
 ; ======================================= Post Bug Fix round 1 correlations ==================================================================
 ;Meteor_impact_UTC_array    = ['2011-08-04 01:40:00', '2011-08-04 01:50:00']           ; index by i
@@ -146,19 +160,57 @@ endif
 ;  loop_times_array           = [20]                                    ; index by j
 ;  Surface_distribution_array = ['Point_[255, 0]', 'Point_[270, 0]', 'Point_[270, 20]' ]   ; index by k
 
-  Meteor_impact_UTC_array    = ['2013-04-13 13:35:00']                         ; index by i
-  Plume_temperature_array    = ['10000K', '15000K']                              ; index by j
-  loop_times_array           = [40,40]                                    ; index by j
-  Surface_distribution_array = ['Point_[235, 50]','Point_[235, 30]','Point_[245, 30]','Point_[225, 30]']   ; index by k
+
+; Event 2 round 0 (runtime = 12 hours, key_frames_Na  = [indgen(51)] * 24)
+;  Meteor_impact_UTC_array    = ['2012-10-24 11:10:00', '2012-10-24 11:20:00', '2012-10-24 11:30:00', '2012-10-24 11:40:00']                         ; index by i
+;  Plume_temperature_array    = ['5000K']                              ; index by j
+;  loop_times_array           = [15]                                   ; index by j
+;  Surface_distribution_array = ['Point_[0, 0]','Point_[30, 0]','Point_[60, 0]','Point_[90, 0]', $
+;                                'Point_[120, 0]','Point_[150, 0]','Point_[180, 0]','Point_[210, 0]', $
+;                                'Point_[240, 0]','Point_[270, 0]','Point_[300, 0]','Point_[330, 0]' ]   ; index by k
+  Initial_Brightness_multiplier_Na = 10.                              
+
+; Event 2 round 0 (runtime = 12 hours, key_frames_Na  = [indgen(51)] * 24)
+;Meteor_impact_UTC_array    = ['2012-10-24 11:05:00', '2012-10-24 11:10:00', '2012-10-24 11:15:00', '2012-10-24 11:20:00', '2012-10-24 11:25:00']                         ; index by i
+;Plume_temperature_array    = ['15000K']                              ; index by j
+;loop_times_array           = [15]                                    ; index by j
+;Surface_distribution_array = ['Point_[110, 0]','Point_[130, 0]','Point_[140, 0]','Point_[160, 0]']   ; index by k
+
+;Meteor_impact_UTC_array    = ['2012-10-24 11:25:00']                         ; index by i
+;Plume_temperature_array    = ['10000K']                              ; index by j
+;loop_times_array           = [40]                                          ; index by j
+;Surface_distribution_array = ['Point_[120, -30]','Point_[120, 30]','Point_[140, -30]','Point_[140, -10]']   ; index by k
+
+Meteor_impact_UTC_array    = ['2012-10-24 11:20:00', '2012-10-24 11:25:00', '2012-10-24 11:30:00']                         ; index by i
+Plume_temperature_array    = ['10000K','15000K']         ;['5000K','10000K','15000K']                              ; index by j
+loop_times_array           = [40, 40]                                          ; index by j
+Surface_distribution_array = ['Point_[135, 00]','Point_[135, -30]','Point_[135, -60]','Point_[140, 00]','Point_[140, -30]','Point_[140, -60]']   ; index by k
+
+
   for i = 0, N_elements(Meteor_impact_UTC_array)-1 do begin
     for j = 0, N_elements(Plume_temperature_array)-1 do begin
       for k = 0, N_elements(Surface_distribution_array)-1 do begin
-        ;if ((i eq 1) and (k lt 4)) then continue
-        Observing_Sequence_Event_3, Meteor_impact_UTC = Meteor_impact_UTC_array[i], Plume_Temperature = Plume_Temperature_array[j], $
-                                    Surface_distribution = Surface_distribution_array[k], loop_times = loop_times_array[j]
+        ;if i eq 0 and k eq 0 then continue
+        
+        Meteor_impact_UTC    = Meteor_impact_UTC_array[i]
+        Plume_Temperature    = Plume_Temperature_array[j]
+        loop_times           = loop_times_array[j]
+        Surface_distribution = Surface_distribution_array[k]
+        
+        Observing_Sequence_Event_2, Meteor_impact_UTC = Meteor_impact_UTC, Plume_Temperature = Plume_Temperature, $
+                                    Surface_distribution = Surface_distribution, loop_times = loop_times, Brightness_multiplier_Na = Initial_Brightness_multiplier_Na
+        
+        ; We still need to tune (optimize) the ejection rate to get a good metric for Chi squared and Correlation.
+        ; Minimize Chi squared between the model and data by tuning Brightness_multiplier_Na                 
+          minimize_sequence_chisq = 1
+          if minimize_sequence_chisq then begin
+            R = AMOEBA(1.0e-2, SCALE=4.0, P0 = Initial_Brightness_multiplier_Na, FUNCTION_VALUE=fval)
+            Print, 'Brightness_multiplier_Na optimized:', R
+            Observing_Sequence_Event_2, Meteor_impact_UTC = Meteor_impact_UTC, Plume_Temperature = Plume_Temperature, $
+                                        Surface_distribution = Surface_distribution, loop_times = loop_times, Brightness_multiplier_Na = R, Na_Chisq = Na_Chisq
+        endif                            
       endfor
     endfor
   endfor
-Observing_Sequence_Event_2
 
 end

@@ -1,17 +1,17 @@
 Pro Observing_Sequence_Event_2, Meteor_impact_UTC = Meteor_impact_UTC, Plume_Temperature = Plume_Temperature, $
-                          Surface_distribution = Surface_distribution, loop_times = loop_times
+                                Surface_distribution = Surface_distribution, loop_times = loop_times, Brightness_multiplier_Na = Brightness_multiplier_Na, Na_Chisq = Na_Chisq
 
 ; Runtimes:
 
 ; Background: 1.e26 1200K MBF, 100 loops, 0.166 Days duration = 2 days runtime (isotropic dayside?)
 
 ; Current Run
-  Meteor_impact_UTC             = '2012-10-24 11:40:00'       ; time of the impact
-  Plume_Temperature             = '15000K'                    ; temperature of the impact vapour
-  Surface_distribution = 'Point_[55, 00]'                     ; Location of the impactor
-  loop_times                    = 2.                          ; Bare minimum for any reasonable S/N (was 90 in Event 1)
+;  Meteor_impact_UTC             = '2012-10-24 11:25:00'       ; time of the impact
+;  Plume_Temperature             = '10000K'                     ; temperature of the impact vapour
+;  Surface_distribution = 'Point_[100, -60]'                     ; Location of the impactor
+;  loop_times                    = 25.                         ; Bare minimum for any reasonable S/N (was 90 in Event 1)
+;  Brightness_multiplier_Na      = 9.
   Na_Lofted                     = 1.e25                       ; seems like a lot
-  Brightness_multiplier_Na      = 40.   
 
 COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in_frame, viewpoint, FOV, N_ticks, Tickstep, Observatory, Above_Ecliptic, Boresight_Pixel, Aperture_Corners
 COMMON Model_shared, Body, Ephemeris_time, Seed, Directory, Particle_data, Line_data, Debug
@@ -20,12 +20,13 @@ Na_Data_Color  = 'Orange'
 Na_Model_Color = 'Orange'
 ;key_frames_Na  = [indgen(70)] * 18
 ;key_frames_Na  = [ [indgen(32)] * 8, [indgen(12)] * 40 + 256]
-key_frames_Na  = [indgen(51)] * 24
+key_frames_Na  = [indgen(51)] * 24 ; never change this! causes headaches.
 ;key_frames_Na  = [indgen(27)] * 8
 key_frames_Na  = key_frames_Na[UNIQ(key_frames_Na, SORT(key_frames_Na))]
 
-  Na_scale = alog10([10^(-0.25), 10^1.75]) ; range to logrithmically scale the Na images in KiloRayleighs
-  Mg_scale = alog10([10^(-1.5), 10^0.5]) ; range to logrithmically scale the Mg images in KiloRayleighs
+  if size(brightness_multiplier_Na, /dim) then brightness_multiplier_Na = float(brightness_multiplier_Na[0]) ; brightness_multiplier_Na needs to be a floating falue not a single element array, convert if needed
+  Na_scale = alog10([10^(-0.25), 10^1.75])                                                                   ; range to logrithmically scale the Na images in KiloRayleighs
+  Mg_scale = alog10([10^(-1.5), 10^0.5])                                                                     ; range to logrithmically scale the Mg images in KiloRayleighs
 
 ; Calculate the flatness coefficient and planetary radius
   cspice_bodvrd, body, 'RADII', 3, radii
@@ -105,7 +106,7 @@ key_frames_Na  = key_frames_Na[UNIQ(key_frames_Na, SORT(key_frames_Na))]
     junk = where(key_frames_Na eq i, count, /NULL)
     if count eq 0 then continue
     if days_since_meteor_impact[i] lt 0. then continue ; Can't model an event that hasn't happened yet    
-    if FILE_TEST('C:\IDL\Generic Model V2\read_write\'+write_directory+'\Na_Meteor_frame_'+strcompress(string(i), /remove_all)+'.fit') then continue ; skip if we've done this before
+    if FILE_TEST('C:\IDL\Generic Model V2\read_write\'+write_directory+'\Na_Meteor_frame_'+strcompress(string(i), /remove_all)+'.fit') then continue; skip if we've done this before
     
     if i gt key_frames_Na[0] then restore_aloft_filename = 'C:\IDL\Generic Model V2\read_write\' + write_directory + '\Na_Meteor_frame_'+strcompress(key_frames_Na[junk-1], /remove)+'_loc_aloft.sav' else restore_aloft_filename = !Null
     
@@ -260,7 +261,7 @@ key_frames_Na  = key_frames_Na[UNIQ(key_frames_Na, SORT(key_frames_Na))]
 
         ; Annotate what's going on here  
           cgtext, mean(!x.crange), 27, 'Simulated Meteor Impact: ' + strmid(Meteor_impact_UTC, 11, 5) + ' at ' + $
-            strmid(Surface_distribution, 7, 3) + cgsymbol('deg') + ' W Lon, '+ strmid(Surface_distribution, 11, 3) + cgsymbol('deg') + ' Lat', color = 'black', charsize = 1, alignment = .5
+            strmid(Surface_distribution, 7, 3) + cgsymbol('deg') + ' W Lon, '+ strmid(Surface_distribution, 11, 4) + cgsymbol('deg') + ' Lat', color = 'black', charsize = 1, alignment = .5
           
           if sxpar(Na_header, 'Bounce') then T_acc_string = ', Thermal Accomodation = ' +  string(sxpar(Na_header, 'T_Accom'), format = '(F4.2)') else T_acc_string = ''
           cgtext, mean(!x.crange), 24, string(brightness_multiplier_Na * sxpar(Na_header, 'UPWARD_F') * 22.989769*1.e-3 / 6.02214e23, format = '(F4.2)') + ' kg Na, ' + Plume_Temperature + ' MBF' + T_acc_string, $
@@ -282,6 +283,6 @@ key_frames_Na  = key_frames_Na[UNIQ(key_frames_Na, SORT(key_frames_Na))]
     
     Print, 'Correlation of results Na[Key_frames]:', correl_Na
     Print, 'Chi Squared of results Na[Key_frames]:', Na_Chisq
-    ;save, correl_Na, filename = Directory+ 'Correlation_results\' + write_directory + '_correlation_Event_2_Round_0.sav'
+    save, correl_Na, filename = Directory+ 'Correlation_results\' + write_directory + '_correlation_Event_2_Round_0.sav'
     writecol, Directory + write_directory + '\Na_transient.txt', Na_UTC_string, Simulated_UVVS_brightness_Na
 end
