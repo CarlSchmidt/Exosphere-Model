@@ -126,11 +126,11 @@ Upward_flux_at_exobase = 2.e25                             ; Upward Flux accross
 Debug                  = 0                                 ; Set to 1 to output more detail at intermidiate steps.        
 exobase_height         = 0.d                               ; Exobase altitude above the surface, units of KM
 if keyword_set(Loop_times_this_run) then Loop_times=Loop_times_this_run else $ 
-Loop_times             = 3                                 ; How many loops the model should run, runs are stacked and averaged so this sets statistical noise  
+Loop_times             = 1                                 ; How many loops the model should run, runs are stacked and averaged so this sets statistical noise  
 FOV                    = 3600.*80.                         ; ARCSECONDS to a side. Field of View to display for output images that are in SKY COORDINATES
 N_ticks                = 10.                               ; Number of tick marks in the axis of the sky coordinate image
 tickstep               = 200.                              ; Axis tick step size in Body radii for the 'Above ecliptic' viewings  
-thermal_accom_coeff    = 0.2                               ; For Bounce keyword = 1 only. Thermal accomodation towards the local surface temperature,  (0.62 Hunten et al. 1988)
+thermal_accom_coeff    = 0.1                               ; For Bounce keyword = 1 only. Thermal accomodation towards the local surface temperature,  (0.62 Hunten et al. 1988)
 Plot_range             = 1600.                             ; For 'Above ecliptic' viewing only. Defines the plate scale, the spatial distance of each axis to be plotted in BODY RADII
 ;===========================================KEYWORDS=======================================================================
 Bounce                 = 1                                 ; Particles re-impacting the surface can bounce (=1) or stick (=0) 

@@ -1,20 +1,16 @@
 Pro Observing_Sequence, Meteor_impact_UTC = Meteor_impact_UTC, Plume_Temperature = Plume_Temperature, $
                           Surface_distribution = Surface_distribution, loop_times = loop_times
 
-; Runtimes:
-
-; Background: 1.e26 1200K MBF, 100 loops, 0.166 Days duration = 2 days runtime (isotropic dayside?)
-
 ; Current Run
       Meteor_impact_UTC             = '2011-08-04 02:20:00'       ; time of the impact
-      Surface_distribution = 'Point_[115, 0]'                     ; Location of the impactor
-      Plume_Temperature             = '15000K'                    ; temperature of the impact vapour      
+      Surface_distribution          = 'Point_[115, 20]'           ; Location of the impactor
+      Plume_Temperature             = '20000K'                    ; temperature of the impact vapour      
       loop_times                    = 90.                         ; Bear minimum for any reasonable S/N
       Na_Lofted                     = 1.e25                       ; seems like a lot
       Mg_Lofted                     = 4.*Na_lofted                ; seems like a lot
-      Brightness_multiplier_Na      = 1.3000                      ; for best fit at 10,000K 1.e25 ejected
-      Brightness_multiplier_Mg      = 0.9286                      ; for best fit at 15,000K 1.e25 ejected
-      
+      Brightness_multiplier_Na      = 0.8056                      ; for best fit at 12,000K w/ 1.e25 ejected, R = 2.5006532, chisq = 0.96562143      
+      Brightness_multiplier_Mg      = 0.6129                      ; for best fit at 20,000K w/ 1.e25 ejected, R = 1.7672494, chisq = 0.84740833
+                                                                  ; Na / K = 3.042 in this best fit
       ;For comparison
       ;Meteor_impact_UTC             = '2011-08-04 02:15:00'      ; time of the impact
       ;Plume_Temperature             = '3501K'                    ; temperature of the impact vapour      
@@ -67,7 +63,7 @@ key_frames_Mg = key_frames_Mg[UNIQ(key_frames_Mg, SORT(key_frames_Mg))]
   UVVS_UTC_TIME_Mg = string(UVVS_DDR_Mg.UTC_TIME)  ; convert time from byte to string YYDOYTHH:MM:SS.00
 
 ; define the time window to be plotted  
-  ;plot_times       = ['2011-08-04 02:08', '2011-08-04 07:15'] ; times to plot (UTC)
+  ;plot_times       = ['2011-08-04 02:30', '2011-08-04 03:00'] ; times to plot (UTC)
   plot_times       = ['2011-08-04 02:08', '2011-08-04 06:30'] ; times to plot (UTC)
   cspice_utc2et, plot_times[0], start_ET
   cspice_utc2et, plot_times[1], stop_ET
@@ -122,13 +118,14 @@ key_frames_Mg = key_frames_Mg[UNIQ(key_frames_Mg, SORT(key_frames_Mg))]
   Mg_UTC_string = Mg_UTC_string[duration[Keep_Mg]]
 
 ; Filter frames that the UVVS team (just Tim really, but I believe him) says are "bad data"
-  bad_Na = where( (Na_UTC_string eq '2011-08-04 02:25:41.43') )
+  bad_Na = where( (Na_UTC_string eq '2011-08-04 02:25:41.43'), count_bad_Na)
   bad_Mg = where( (Mg_UTC_string eq '2011-08-04 03:38:33.67') or $
                   (Mg_UTC_string eq '2011-08-04 04:04:09.67') or $
                   (Mg_UTC_string eq '2011-08-04 04:54:33.67') or $ 
-                  (Mg_UTC_string eq '2011-08-04 05:59:21.67') )
-  remove, Bad_Na, DDR_Na, DDR_Na_err, PDS_ET_Na, PDS_JD_Na, Na_UTC_string, DDR_Na_subset
-  remove, Bad_Mg, DDR_Mg, DDR_Mg_err, PDS_ET_Mg, PDS_JD_Mg, Mg_UTC_string, DDR_Mg_subset
+                  (Mg_UTC_string eq '2011-08-04 05:59:21.67'), count_bad_Mg)
+  
+  if count_bad_Na gt 0 then remove, Bad_Na, DDR_Na, DDR_Na_err, PDS_ET_Na, PDS_JD_Na, Na_UTC_string, DDR_Na_subset
+  if count_bad_Mg gt 0 then remove, Bad_Mg, DDR_Mg, DDR_Mg_err, PDS_ET_Mg, PDS_JD_Mg, Mg_UTC_string, DDR_Mg_subset
 
 ; Load the background model's from Tim Cassidy and Matt Burger
   readcol, Directory+'MESSENGER_UVVS\Background_Model\Mg_time_series_278.txt', MG_BG_UTC_string_278, MG_Obs_BG_278, MG_BG_278, format = 'A,F,F'
@@ -181,7 +178,8 @@ key_frames_Mg = key_frames_Mg[UNIQ(key_frames_Mg, SORT(key_frames_Mg))]
     
     Generic_Model, Time_range_this_run = days_since_meteor_impact[i], Output_title_this_run = write_directory + '\Na_Meteor_frame_'+strcompress(string(i), /remove_all), $
                    test_particle_this_run = 'Na', Line_this_run = 'Na-D', UTC_this_run = Na_UTC_string[i], $
-                   Surface_distribution_this_run = Surface_distribution, Speed_distribution_this_run = 'MBF_10000K', $
+                   ;Surface_distribution_this_run = Surface_distribution, Speed_distribution_this_run = 'MBF_14000K', $
+                   Surface_distribution_this_run = Surface_distribution, Speed_distribution_this_run = 'MBF_12000K', $
                    ;Surface_distribution_this_run = Surface_distribution, Speed_distribution_this_run = 'MBF_'+plume_temperature, $
                    loop_times_this_run = loop_times, Upward_flux_at_exobase_this_run = Na_Lofted, restore_aloft_filename = restore_aloft_filename          
   endfor
@@ -198,6 +196,7 @@ key_frames_Mg = key_frames_Mg[UNIQ(key_frames_Mg, SORT(key_frames_Mg))]
 
     Generic_Model, Time_range_this_run = days_since_meteor_impact[i], Output_title_this_run = write_directory + '\Mg_Meteor_frame_'+strcompress(string(i), /remove_all), $
                    test_particle_this_run = 'Mg', Line_this_run = 'Mg-2853',  UTC_this_run = Mg_UTC_string[i], $
+                   ;Surface_distribution_this_run = Surface_distribution, Speed_distribution_this_run = 'MBF_10000K', $
                    Surface_distribution_this_run = Surface_distribution, Speed_distribution_this_run = 'MBF_'+plume_temperature, $
                    loop_times_this_run = loop_times, Upward_flux_at_exobase_this_run = Mg_Lofted, restore_aloft_filename = restore_aloft_filename    
   endfor
@@ -333,7 +332,7 @@ key_frames_Mg = key_frames_Mg[UNIQ(key_frames_Mg, SORT(key_frames_Mg))]
            cgcontour, ob.lat, /onimage, levels = lat_contours, LABEL = 0, color = 'Snow', THICK = .5, CHARSIZE = .5
            cgcontour, ob.lon, /onimage, levels = lon_contours, LABEL = 1, color = 'Snow', THICK = .5, CHARSIZE = .5
            
-           cgtext, -28, 25, 'Na', color = Na_Model_Color, charsize = 1.2
+           cgtext, -37, 32, 'Na', color = Na_Model_Color, charsize = 1.2
            
         P = pos[*,1]+[0.015, -.03, 0., .08]
         cgImage, bytscl(alog10(frame_Mg), Mg_scale[0], Mg_scale[1]), AXKEYWORDS=axis_format, /Axes, /KEEP_ASPECT, Position = P, /noerase
@@ -412,7 +411,7 @@ key_frames_Mg = key_frames_Mg[UNIQ(key_frames_Mg, SORT(key_frames_Mg))]
               cgcontour, ob.lat, /onimage, levels = lat_contours, LABEL = 0, color = 'Snow', THICK = .5, CHARSIZE = .5
               cgcontour, ob.lon, /onimage, levels = lon_contours, LABEL = 1, color = 'Snow', THICK = .5, CHARSIZE = .5
               
-              cgtext, -28, 25, 'Mg', color = Mg_Model_Color, charsize = 1.2
+              cgtext, -37, 32, 'Mg', color = Mg_Model_Color, charsize = 1.2
 
        ; Upper panel
          P = [pos[0,2]+0.065, pos[3,2]-.14, pos[2,3]-0.065, pos[3,2]+.03]
@@ -437,7 +436,7 @@ key_frames_Mg = key_frames_Mg[UNIQ(key_frames_Mg, SORT(key_frames_Mg))]
           
           cgtext, PDS_JD_Na[ind] + 1.5/24., 14, 'UVVS Na', color = Na_Data_Color, charsize = 1
           cgtext, PDS_JD_Na[ind] + 1.5/24., 10, string(brightness_multiplier_Na * sxpar(Na_header, 'UPWARD_F') * 22.989769*1.e-3 / 6.02214e23, format = '(F4.2)') + ' kg Na', color = 'Black', charsize = 1    
-          cgtext, PDS_JD_Na[ind] + 1.5/24., 6, '10,000K', color = 'Black', charsize = 1
+          cgtext, PDS_JD_Na[ind] + 1.5/24., 6, '12,000K', color = 'Black', charsize = 1
           ;cgtext, PDS_JD_Na[ind] + 1.5/24., 6, '3,500K', color = 'Black', charsize = 1
           
           cgtext, mean(!x.crange), 74, 'Simulated Meteor Impact: ' + strmid(Meteor_impact_UTC, 12, 4) + ' at ' + $
@@ -445,7 +444,7 @@ key_frames_Mg = key_frames_Mg[UNIQ(key_frames_Mg, SORT(key_frames_Mg))]
           ;cgtext, PDS_JD_Na[ind] + .70/24., 9, Plume_Temperature + ' MBF', color = 'black', charsize = 1
           cgtext, PDS_JD_Na[0]-.01, -15, 'Brightness [kR]', orientation = 90, charsize = 1.
  
-          debug = 1
+          debug = 0
           if keyword_set(debug) then begin
             cgtext, PDS_JD_Na[0]+.03, 15., '--------UTC-------LT----ALT--(MERC-SUN AXIS) ANG--APERTURE COORD---', charsize = .6
             coords = mean(Pointing_Na.APERTURE_CORNERS, dim = 2) * platescale/3600.+range[0]
@@ -464,8 +463,8 @@ key_frames_Mg = key_frames_Mg[UNIQ(key_frames_Mg, SORT(key_frames_Mg))]
                     string(!radeg * cspice_vsep( DDR_Na_subset[i].PLANET_SUN_VECTOR_TG, DDR_Na_subset[i].BORESIGHT_UNIT_VECTOR_CENTER_TG ), format = '(F8.2)') + 'deg                       [' + $
                     string(coords[0], format = '(F5.2)')+','+string(coords[1], format = '(F6.2)') + ']', charsize = .6
             cgtext, PDS_JD_Na[0]+.065, 9., string(test_alt, format = '(I6)') + 'km' + string(test_alt2, format = '(I6)') + 'km', charsize = .6
-          stop
           endif
+          
       ; Lower panel  
         P = [pos[0,2]+0.065, pos[1,2]-.01, pos[2,3]-0.065, pos[3,2]-.14]
         
@@ -486,7 +485,7 @@ key_frames_Mg = key_frames_Mg[UNIQ(key_frames_Mg, SORT(key_frames_Mg))]
         ; Anotations
           cgtext, PDS_JD_Na[ind] + 1.5/24., 0.78, 'UVVS Mg', Color = Mg_Data_Color, charsize = 1
           cgtext, PDS_JD_Na[ind] + 1.5/24., 0.6, string(brightness_multiplier_Mg * sxpar(Mg_header, 'UPWARD_F') * 24.305*1.e-3 / 6.02214e23, format = '(F4.2)') + ' kg Mg', color = 'Black', charsize = 1
-          cgtext, PDS_JD_Na[ind] + 1.5/24., 0.42, '15,000K', color = 'Black', charsize = 1
+          cgtext, PDS_JD_Na[ind] + 1.5/24., 0.42, '20,000K', color = 'Black', charsize = 1
           ;cgtext, PDS_JD_Na[ind] + 1.5/24., 0.42, '3,500K', color = 'Black', charsize = 1
         
       cgPS_Close, width = xs, /PNG;, /Delete_PS ; Convert to PNG file.
@@ -494,6 +493,7 @@ key_frames_Mg = key_frames_Mg[UNIQ(key_frames_Mg, SORT(key_frames_Mg))]
       image = image[*,0:xs-1,0:ys-1] ;not sure why this is needed but it is
       void = video -> Put(stream, image)
       ;if i eq 50 then break
+      ;stop
   endfor
   video -> Cleanup
 
@@ -508,7 +508,7 @@ key_frames_Mg = key_frames_Mg[UNIQ(key_frames_Mg, SORT(key_frames_Mg))]
     
     Print, 'Correlation of results Na & Mg [Key_frames]:', correl_Na, correl_Mg
     Print, 'Chi Squared of results Na & Mg [Key_frames]:', Na_Chisq, Mg_Chisq
-    save, correl_Na, correl_Mg, filename = Directory+ 'Correlation_results\' + write_directory + '_correlation_Round_6.sav'
+    save, correl_Na, correl_Mg, filename = Directory+ 'Correlation_results\' + write_directory + '_correlation_Round_7.sav'
     writecol, Directory + write_directory + '\Na_transient.txt', Na_UTC_string, Simulated_UVVS_brightness_Na
     writecol, Directory + write_directory + '\Mg_transient.txt', Mg_UTC_string, Simulated_UVVS_brightness_Mg
     stop

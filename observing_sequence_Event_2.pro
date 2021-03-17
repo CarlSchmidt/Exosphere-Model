@@ -3,14 +3,12 @@ Pro Observing_Sequence_Event_2, Meteor_impact_UTC = Meteor_impact_UTC, Plume_Tem
 
 ; Runtimes:
 
-; Background: 1.e26 1200K MBF, 100 loops, 0.166 Days duration = 2 days runtime (isotropic dayside?)
-
 ; Current Run
-;  Meteor_impact_UTC             = '2012-10-24 11:25:00'       ; time of the impact
-;  Plume_Temperature             = '10000K'                     ; temperature of the impact vapour
-;  Surface_distribution = 'Point_[100, -60]'                     ; Location of the impactor
-;  loop_times                    = 25.                         ; Bare minimum for any reasonable S/N (was 90 in Event 1)
-;  Brightness_multiplier_Na      = 9.
+  ;Meteor_impact_UTC             = '2012-10-24 11:30:00'       ; time of the impact
+  ;Plume_Temperature             = '12000K'                     ; temperature of the impact vapour
+  ;Surface_distribution = 'Point_[110, -30]'                     ; Location of the impactor
+  ;loop_times                    = 40.                         ; Bare minimum for any reasonable S/N (was 90 in Event 1)
+  ;Brightness_multiplier_Na      = 4.
   Na_Lofted                     = 1.e25                       ; seems like a lot
 
 COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in_frame, viewpoint, FOV, N_ticks, Tickstep, Observatory, Above_Ecliptic, Boresight_Pixel, Aperture_Corners
@@ -20,8 +18,9 @@ Na_Data_Color  = 'Orange'
 Na_Model_Color = 'Orange'
 ;key_frames_Na  = [indgen(70)] * 18
 ;key_frames_Na  = [ [indgen(32)] * 8, [indgen(12)] * 40 + 256]
-key_frames_Na  = [indgen(51)] * 24 ; never change this! causes headaches.
-;key_frames_Na  = [indgen(27)] * 8
+key_frames_Na  = [indgen(51)] * 24 ; never change this! causes headaches. ;most runs used this one
+;key_frames_Na  = [indgen(308)] * 4 
+
 key_frames_Na  = key_frames_Na[UNIQ(key_frames_Na, SORT(key_frames_Na))]
 
   if size(brightness_multiplier_Na, /dim) then brightness_multiplier_Na = float(brightness_multiplier_Na[0]) ; brightness_multiplier_Na needs to be a floating falue not a single element array, convert if needed
@@ -240,9 +239,9 @@ key_frames_Na  = key_frames_Na[UNIQ(key_frames_Na, SORT(key_frames_Na))]
            cgcontour, ob.lon, /onimage, levels = lon_contours, LABEL = 1, color = 'Snow', THICK = .5, CHARSIZE = .5
       
        ; Plot the time-series panel
-         P = [pos[0,2]+0.065, pos[3,2]-.3, pos[2,3]-0.065, pos[3,2]+.03]
+         P = [pos[0,2]+0.1, pos[3,2]-.3, pos[2,3], pos[3,2]+.03]
          cgplot, PDS_JD_Na, DDR_Na, /nodata, /xstyle, XTICKFORMAT='LABEL_DATE', XTICKUNITS = ['Minutes'], Xminor=5, XTICKINTERVAL=15, xtitle = strmid(Na_UTC_string[0], 0, 10)+' UTC', $
-            Position=P, yr = [-1., 31.], charsize = 1, /noerase, ERR_YHIGH = DDR_Na_err, ERR_Ylow = DDR_Na_err, /ERR_CLIP, ERR_WIDTH = 0.
+           Position=P, yr = [-1., 31.], charsize = 1, /noerase, ERR_YHIGH = DDR_Na_err, ERR_Ylow = DDR_Na_err, /ERR_CLIP, ERR_WIDTH = 0., ytitle = 'Brightness [kR]'
        
         ; plot the rolling time ticker
            cgplot, [PDS_JD_Na[i], PDS_JD_Na[i]], [-10, 50], thick = 0.5, /overplot
@@ -260,14 +259,14 @@ key_frames_Na  = key_frames_Na[UNIQ(key_frames_Na, SORT(key_frames_Na))]
             cgplot, PDS_JD_Na[0:i], Na_BG[0:i], color = 'Black', /overplot, thick = 4, linestyle = 1                
 
         ; Annotate what's going on here  
-          cgtext, mean(!x.crange), 27, 'Simulated Meteor Impact: ' + strmid(Meteor_impact_UTC, 11, 5) + ' at ' + $
+          cgtext, mean(!x.crange), 28, 'Simulated Meteor Impact: ' + strmid(Meteor_impact_UTC, 11, 5) + ' at ' + $
             strmid(Surface_distribution, 7, 3) + cgsymbol('deg') + ' W Lon, '+ strmid(Surface_distribution, 11, 4) + cgsymbol('deg') + ' Lat', color = 'black', charsize = 1, alignment = .5
           
           if sxpar(Na_header, 'Bounce') then T_acc_string = ', Thermal Accomodation = ' +  string(sxpar(Na_header, 'T_Accom'), format = '(F4.2)') else T_acc_string = ''
-          cgtext, mean(!x.crange), 24, string(brightness_multiplier_Na * sxpar(Na_header, 'UPWARD_F') * 22.989769*1.e-3 / 6.02214e23, format = '(F4.2)') + ' kg Na, ' + Plume_Temperature + ' MBF' + T_acc_string, $
+          cgtext, mean(!x.crange), 25, string(brightness_multiplier_Na * sxpar(Na_header, 'UPWARD_F') * 22.989769*1.e-3 / 6.02214e23, format = '(F4.2)') + ' kg Na, ' + Plume_Temperature + ' MBF' + T_acc_string, $
             color = 'black', charsize = 1, alignment = .5
           ;cgtext, mean(!x.crange), 21, 'Thermal Accomodation = ' +  strcompress(sxpar(Na_header, 'T_Accom'))
-          cgtext, PDS_JD_Na[0]-.01, 15, 'Na Brightness [kR]', orientation = 90, charsize = 1.
+          ;cgtext, PDS_JD_Na[0]-.01, 15, 'Na Brightness [kR]', orientation = 90, charsize = 1.
 
       cgPS_Close, width = xs, /PNG;, /Delete_PS ; Convert to PNG file.
       image = Read_PNG(Directory + write_directory + '\movie.png')

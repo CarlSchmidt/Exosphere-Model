@@ -6,12 +6,12 @@ Pro Observing_Sequence_Event_3, Meteor_impact_UTC = Meteor_impact_UTC, Plume_Tem
 ; Background: 1.e26 1200K MBF, 100 loops, 0.166 Days duration = 2 days runtime (isotropic dayside?)
 
 ; Current Run
-;  Meteor_impact_UTC             = '2013-04-13 13:32:00'       ; time of the impact
-;  Plume_Temperature             = '10000K'                    ; temperature of the impact vapour
-;  Surface_distribution = 'Point_[280, 20]'                    ; Location of the impactor
-;  loop_times                    = 40.                         ; Bear minimum for any reasonable S/N (was 90 in Event 1)
+  Meteor_impact_UTC             = '2013-04-13 13:30:00'       ; time of the impact
+  Plume_Temperature             = '10000K'                    ; temperature of the impact vapour
+  Surface_distribution = 'Point_[235, 30]'                    ; Location of the impactor
+  loop_times                    = 40.                         ; Bear minimum for any reasonable S/N (was 90 in Event 1)
   Na_Lofted                     = 1.e25                        ; seems like a lot
-  Brightness_multiplier_Na      = 1.   
+  Brightness_multiplier_Na      = 2.2   
 
 COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in_frame, viewpoint, FOV, N_ticks, Tickstep, Observatory, Above_Ecliptic, Boresight_Pixel, Aperture_Corners
 COMMON Model_shared, Body, Ephemeris_time, Seed, Directory, Particle_data, Line_data, Debug

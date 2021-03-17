@@ -181,16 +181,19 @@ PRO Call_observing_sequence, Display_Correlation_Results = Display_Correlation_R
 ;loop_times_array           = [40]                                          ; index by j
 ;Surface_distribution_array = ['Point_[120, -30]','Point_[120, 30]','Point_[140, -30]','Point_[140, -10]']   ; index by k
 
-Meteor_impact_UTC_array    = ['2012-10-24 11:20:00', '2012-10-24 11:25:00', '2012-10-24 11:30:00']                         ; index by i
-Plume_temperature_array    = ['10000K','15000K']         ;['5000K','10000K','15000K']                              ; index by j
-loop_times_array           = [40, 40]                                          ; index by j
-Surface_distribution_array = ['Point_[135, 00]','Point_[135, -30]','Point_[135, -60]','Point_[140, 00]','Point_[140, -30]','Point_[140, -60]']   ; index by k
+;Meteor_impact_UTC_array    = ['2012-10-24 11:20:00', '2012-10-24 11:25:00', '2012-10-24 11:30:00']                         ; index by i
+;Plume_temperature_array    = ['5000K','10000K','15000K']                              ; index by j
+;loop_times_array           = [40, 40]                                          ; index by j
+;Surface_distribution_array = ['Point_[135, 00]','Point_[135, -30]','Point_[135, -60]','Point_[140, 00]','Point_[140, -30]','Point_[140, -60]']   ; index by k
 
+Meteor_impact_UTC_array    = ['2012-10-24 11:30:00','2012-10-24 11:33:00']                         ; index by i
+Plume_temperature_array    = ['12000K']         ;                          ; index by j
+loop_times_array           = [20]                                          ; index by j
+Surface_distribution_array = ['Point_[100, -15]','Point_[100, -30]','Point_[100, -45]','Point_[100, 30]']   ; index by k
 
   for i = 0, N_elements(Meteor_impact_UTC_array)-1 do begin
     for j = 0, N_elements(Plume_temperature_array)-1 do begin
       for k = 0, N_elements(Surface_distribution_array)-1 do begin
-        ;if i eq 0 and k eq 0 then continue
         
         Meteor_impact_UTC    = Meteor_impact_UTC_array[i]
         Plume_Temperature    = Plume_Temperature_array[j]
