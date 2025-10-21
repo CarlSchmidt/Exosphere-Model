@@ -22,6 +22,10 @@ function illumination, time, x, y, z
   
   COMMON Model_shared, Body, Ephemeris_time, Seed, Directory, Particle_data, Line_data, Debug
   
+; Define an array to hold the fractional illimunation of the number of points for which the illumination fraction is calculated
+  illu            = replicate(1., n_elements(x))
+  if strmid(body, 0, 3) eq '100' then goto, skip_illumination_calculation_for_small_bodies
+  
   cspice_bodvrd, 'Sun', 'RADII', 3, Solar_radius ; Find the planet's radius in Km
   cspice_bodvrd, Body , 'RADII', 3, Body_radius  ; Find the Body's radius in Km
   solar_radius = Solar_radius[0]                 ; Default to *Equatorial* radius of Sun in km
@@ -37,7 +41,7 @@ function illumination, time, x, y, z
   endif
 
 ; Find the position of the body WRT the Sun for each particles time in units of km
-  CSPICE_SPKPOS, body, ephemeris_time - REFORM(time), 'J2000', 'NONE', 'Sun', Sun2body, ltime  ; HACK----Not sure if light time is importnant here!!!
+  CSPICE_SPKPOS, body, ephemeris_time - REFORM(time), 'J2000', 'NONE', 'Sun', Sun2body, ltime  ; HACK --- Not sure if light time is important here!!!
   sun_particle        = Sun2body[0:2,*] + [x,y,z]  ;Calculate the vectors from the Sun to the particles
   dist2body           = SQRT( TOTAL( [x,y,z] * [x,y,z], 1 ) )
   dist2Sun            = SQRT( TOTAL( sun_particle * sun_particle, 1 ) )
@@ -69,9 +73,6 @@ function illumination, time, x, y, z
 ;                            / (sqrt((sun2particle[0,*]^2.) + (sun2particle[1,*]^2.) + (sun2particle[2,*]^2.)) * dist2Parent))
       Parent_theta = Vector_Sep_angle( [x_to_Parent,y_to_Parent,z_to_Parent], -sun2particle )
     endif  
-
-; Define an array to hold the fractional illimunation of the number of points for which the illumination fraction is calculated
-  illu            = replicate(1., n_elements(x)) 
 
 ; Determine the fractional illumination: BODY OCCULTING SUN
   Partial_occult  = where( (theta lt (angular_radius_body + angular_radius_sun))    and (theta gt abs(angular_radius_body - angular_radius_sun)), N_partial_occults )
@@ -140,5 +141,6 @@ function illumination, time, x, y, z
   ; ERROR HANDLING: Make sure no there are no infinite, NaN or negative pixels
   check_bad_pixels = WHERE( FINITE(Illu, /NAN), count_bad_pixels) 
   if count_bad_pixels gt 0 then stop
+  skip_illumination_calculation_for_small_bodies:
 return, illu
 end

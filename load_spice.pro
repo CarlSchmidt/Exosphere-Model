@@ -26,11 +26,13 @@ COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in
   for i = 0, N_elements(Generic_Kernels)-1 do CSPICE_FURNSH, Generic_Kernels[i]
 
 ; Now load more the specialized body-specific and observer-specific kernels . . . 
-  cspice_bodn2c, Body, Body_id, found
+  if strmid(body, 0, 3) eq '100' then Body_id = long(body) else $   ; For comets, the main level input should be the Body_ID number
+      cspice_bodn2c, Body, Body_id, found 
   cspice_bods2c, viewpoint, Observer_id, found
 
-; Rosetta Specific Kernels (see aareadme.txt file in kernel directory)
-  If Body_id eq 1000012 then begin
+; Comet and Rosetta Specific Kernels (see aareadme.txt file in kernel directory)
+  if strmid(body, 0, 3) eq '100' then begin
+    Comet_SPKs      = file_search('C:\SPICE\Small_Bodies\*.bsp') ; Hack, need to make this line more unix friendly...
     Rosetta_Kernels = kernel_directory + [$
                       'ROSETTA\kernels\spk\67P_CHURY_GERAS_2004_2016.BSP', $ ; Covers 2003-12-31T23:58:56 to 2015-12-31T23:58:54
                       'ROSETTA\kernels\spk\ORHW_______________00122.BSP', $  ; Ephemeris data for the Comet Churyumov-Gerasimenko/67P
@@ -41,6 +43,16 @@ COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in
                       'ROSETTA\kernels\fk\ROS_V19.TF']
     if !VERSION.OS_FAMILY eq ('unix' or 'MacOS') then Rosetta_Kernels = repstr(Rosetta_Kernels, '\', '/')
     for i = 0, N_elements(Rosetta_Kernels)-1 do CSPICE_FURNSH, Rosetta_Kernels[i]
+    for i = 0, N_elements(Comet_SPKs)-1 do CSPICE_FURNSH, Comet_SPKs[i]
+  endif
+  
+; Other Comet-specific Kernels
+  if (Observer_id eq -48) then begin
+    HST_Kernels = kernel_directory + [$
+      '1990-01-01_2006-12-31.bsp', $      ; SPK (ephemeris kernel) for HST (only through 2006?)
+      '2006-12-01_2008-05-01.bsp']        ; SPK (ephemeris kernel) for HST (only through 2008?)
+    if !VERSION.OS_FAMILY eq ('unix' or 'MacOS') then HST_Kernels = repstr(HST_Kernels, '\', '/')
+    for i = 0, N_elements(HST_Kernels)-1 do CSPICE_FURNSH, HST_Kernels[i]
   endif
 
 ; HST-specific Kernels

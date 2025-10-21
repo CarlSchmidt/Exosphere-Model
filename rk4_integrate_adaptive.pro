@@ -10,10 +10,10 @@ function RK_4_acceleration, Body_xyz, Sun_xyz, time, v
   ;CSPICE_SPKPOS, body, ephemeris_time - REFORM(time), 'J2000', 'None', 'Sun', sun_at_step, ltime ; Slight hack, this should have a light time correction, but that's slow.
   ;sun_at_step = float(sun_at_step)
   ;sun_particle = sun_at_step + [x, y, z]  ;Calculate the vectors from the sun to the particles
-  x = Body_xyz[0,*]
-  y = Body_xyz[1,*]
-  z = Body_xyz[2,*]
-  sun_particle = Sun_xyz
+    x = Body_xyz[0,*]
+    y = Body_xyz[1,*]
+    z = Body_xyz[2,*]
+    sun_particle = Sun_xyz
 
   ; Get the distance cubed from the Body and the Sun
     r_Body3 = ([x^2] + [y^2] + [z^2])^1.5                                            ; distance to the body center cubed for each packet (units of km)
@@ -24,7 +24,7 @@ function RK_4_acceleration, Body_xyz, Sun_xyz, time, v
     radaccel, Line_data.line, v*1000., helio_dist / 149597871., Line_data.wavelength, Line_data.intensity, arad ; arad is in cm/2^s
     ; Note that this result is ~15% less than Smyth models for Na
 
-  ; Check the fraction of the solar disc seen by the atoms (units of km)
+  ; Check the fraction of the solar disc seen by the atoms (convert cm/s^2 to units of km/s^2)
     arad = float(arad) * illumination(time, x, y, z) / 1.e5 ; scale radiation acceleration by the fraction of sunlight that each particle sees
     
   ; convert radiation acceleration from cm/s^2 to km/s^2
@@ -32,38 +32,39 @@ function RK_4_acceleration, Body_xyz, Sun_xyz, time, v
     cspice_bods2c, body, bodyID_code, found
     Parent_ID = strcompress(strmid(strcompress(bodyID_code, /remove_all),0,1) + '99')
 
-    ; Find the position of the body WRT the Parent for each particle's time
-    CSPICE_SPKPOS, body, ephemeris_time - REFORM(time), 'J2000', 'NONE', Parent_ID, Parent_At_Step, ltime
-    Parent_particle = Parent_At_Step[0:2,*] + [x, y, z]  ;Calculate the vectors from the parent to the particles
-    r_Parent3 = (Parent_particle[0,*]^2 + Parent_particle[1,*]^2 + Parent_particle[2,*]^2)^1.5  ;distance from the SSB cubed (units of km)
+    ; Find the position of the Body WRT the Parent Body for each particle's time
+      CSPICE_SPKPOS, body, ephemeris_time - REFORM(time), 'J2000', 'NONE', Parent_ID, Parent_At_Step, ltime
+      Parent_particle = Parent_At_Step[0:2,*] + [x, y, z]                                         ; Vectors from the Parent Body to the particles (units of km)
+      r_Parent3 = (Parent_particle[0,*]^2 + Parent_particle[1,*]^2 + Parent_particle[2,*]^2)^1.5  ; Distance from the Parent Body cubed (units of km)
+    
     ; Cartesian gravity in km/s^2
-    gravity_x = (GM_Body * x / r_Body3) + (GM_Sun * sun_particle[0,*] / r_Sun3) + (GM_Parent * parent_particle[0,*] / r_Parent3)
-    gravity_y = (GM_Body * y / r_Body3) + (GM_Sun * sun_particle[1,*] / r_Sun3) + (GM_Parent * parent_particle[1,*] / r_Parent3)
-    gravity_z = (GM_Body * z / r_Body3) + (GM_Sun * sun_particle[2,*] / r_Sun3) + (GM_Parent * parent_particle[2,*] / r_Parent3)
+      gravity_x = (GM_Body * x / r_Body3) + (GM_Sun * sun_particle[0,*] / r_Sun3) ;+ (GM_Parent * parent_particle[0,*] / r_Parent3)
+      gravity_y = (GM_Body * y / r_Body3) + (GM_Sun * sun_particle[1,*] / r_Sun3) ;+ (GM_Parent * parent_particle[1,*] / r_Parent3)
+      gravity_z = (GM_Body * z / r_Body3) + (GM_Sun * sun_particle[2,*] / r_Sun3) ;+ (GM_Parent * parent_particle[2,*] / r_Parent3)
   endif else begin
     ; Cartesian gravity in km/s^2
-    gravity_x = (GM_Body * x / r_Body3) + (GM_Sun * sun_particle[0,*] / r_Sun3)
-    gravity_y = (GM_Body * y / r_Body3) + (GM_Sun * sun_particle[1,*] / r_Sun3)
-    gravity_z = (GM_Body * z / r_Body3) + (GM_Sun * sun_particle[2,*] / r_Sun3)
+      gravity_x = (GM_Body * x / r_Body3) + (GM_Sun * sun_particle[0,*] / r_Sun3)
+      gravity_y = (GM_Body * y / r_Body3) + (GM_Sun * sun_particle[1,*] / r_Sun3)
+      gravity_z = (GM_Body * z / r_Body3) + (GM_Sun * sun_particle[2,*] / r_Sun3)
   endelse
 
   ; Note that particle orbit's will not be correct without the Sun's / Parent bodies' gravity.
   ; Project the acceleration along a vector along the sun-atom line
-  radaccel_x = arad * sun_particle[0,*] / helio_dist
-  radaccel_y = arad * sun_particle[1,*] / helio_dist
-  radaccel_z = arad * sun_particle[2,*] / helio_dist
+    radaccel_x = arad * sun_particle[0,*] / helio_dist
+    radaccel_y = arad * sun_particle[1,*] / helio_dist
+    radaccel_z = arad * sun_particle[2,*] / helio_dist
 
   ; Consider adding a small component to radiation acceleration due to surface reflection here.
-  ax = gravity_x + radaccel_x
-  ay = gravity_y + radaccel_y
-  az = gravity_z + radaccel_z
+    ax = gravity_x + radaccel_x
+    ay = gravity_y + radaccel_y
+    az = gravity_z + radaccel_z
 
-  ;    if keyword_set(debug) then begin
-  ;      gravity  = sqrt((gravity_x)^2+(gravity_y)^2+(gravity_z)^2)*1.e3     ; Gravitational acceleration in m/s^2
-  ;      radaccel = sqrt((radaccel_x)^2+(radaccel_y)^2+(radaccel_z)^2)*1.e5  ; Radiation acceleration in cm/s^2
-  ;      print, 'Gravitational Acceleration in m/s^2) =', mean(gravity)
-  ;      print, 'Radiation Acceleration in cm/s^2) =', mean(radaccel)
-  ;    endif
+;      if (keyword_set(debug) and (count eq 1)) then begin
+;        gravity  = sqrt((gravity_x)^2+(gravity_y)^2+(gravity_z)^2)*1.e3     ; Gravitational acceleration in m/s^2
+;        radaccel = sqrt((radaccel_x)^2+(radaccel_y)^2+(radaccel_z)^2)*1.e5  ; Radiation acceleration in cm/s^2
+;        print, 'Gravitational Acceleration in m/s^2) =', mean(gravity)
+;        print, 'Radiation Acceleration in cm/s^2) =', mean(radaccel)
+;      endif
 
   return, [ax,ay,az]
 end
@@ -136,8 +137,9 @@ function RK_4_step, loc, dt, ionizelife
 
   ; Scale photo-ionization with 1 / distance^2 from the Sun and the fractional illumination
     check_illum = illumination(t, loc[0,*], loc[1,*], loc[2,*]);check the fraction of the solar disc seen by the atoms (units of km)
-  ;CSPICE_SPKPOS, body, ephemeris_time - REFORM(t), 'J2000', 'None', 'Sun', sun_at_step, ltime ; Slight hack, this should have a light time correction, but that's slow.
+  ;CSPICE_SPKPOS, body, ephemeris_time - REFORM(t), 'J2000', 'None', 'Sun', sun_at_step, ltime ; Slight hack, this should have a light time correction, but that's SLOW.
     sun_particle = sun_pre_step  ; Calculate the vectors from the sun to the particles
+ 
   ; The e-folding photo-ionization lifetime in seconds is:
     photlife   = ((sqrt(sun_particle[0,*]^2 + sun_particle[1,*]^2 + sun_particle[2,*]^2) / 149597871.)^2) * (ionizelife/check_illum)
 
@@ -154,9 +156,9 @@ pro RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_pac
   COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in_frame, viewpoint, FOV, N_ticks, Tickstep, Observatory, Above_Ecliptic, Boresight_Pixel, Aperture_Corners
   COMMON Gravity, GM_Body, GM_Sun, GM_Parent
 
-  t = loc[9,*] - loc[8,*] ;time remaining to track particle
+  t = loc[9,*] - loc[8,*]                                                 ; time remaining to track particle
 
-  platescale = float(float(Output_Size_In_Pixels[0])/(float(plot_range))) ;plate scale of the output in pixels per body radii
+  platescale = float(float(Output_Size_In_Pixels[0])/(float(plot_range))) ; plate scale of the output in pixels per body radii
 
   ; Get the relevant gravitational constants, Body, Sun, and, if Body is a moon, Parent Body
   ; Note that gravitational effects of any moons on their parent bodies are not included as written, but the converse is true
@@ -184,7 +186,10 @@ pro RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_pac
       endif else begin
         print, 'Failed to find  ' + VAR + ' in the kernel pool'
       endelse
-      stop
+      if (strmid(body, 0, 3) eq '100') then begin
+        GM_Body = -1.e-6                              ; Use a small gravitaional constant for small bodies
+        Body_radius = 1.
+      endif else stop         
     endelse
 
   ; Sun
@@ -192,11 +197,11 @@ pro RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_pac
     GM_Sun = float(-GM_Sun[0])            ; negate (attractive)
 
   ; Parent body (Moons only)
-    if ((STRPOS(string(bodyID_code), '99') eq -1) and (strlen(strcompress(bodyID_code, /remove_all)) eq 3)) then begin
+    if ((STRPOS(string(bodyID_code), '99') eq -1) and (strlen(strcompress(bodyID_code, /remove_all)) eq 3)) then begin ; if it's a Moon then ....
       Parent_ID = strcompress(strmid(strcompress(bodyID_code, /remove_all),0,1) + '99')
-      cspice_bodvrd, Parent_ID, "GM", 3, GM_Parent ;Find G*Mass in in Km^3/s^2
-      if keyword_set(debug) then print, 'Parent Body Gravitational Constant: G * Mass (m^3/s^2) =', GM_Parent*1.e9 ;Saturn is ? m^3/s^2
-      GM_Parent = -GM_Parent[0]  ;negate (attractive)
+      cspice_bodvrd, Parent_ID, "GM", 3, GM_Parent                                                                  ; Find G*Mass in in Km^3/s^2
+      if keyword_set(debug) then print, 'Parent Body Gravitational Constant: G * Mass (m^3/s^2) =', GM_Parent*1.e9 
+      GM_Parent = -GM_Parent[0]                                                                                     ; negate (attractive)
     endif
 
   ; Deal with surface interactions. If so we'll also need a surface temperature model, run it if it hasn't been run already
@@ -223,16 +228,16 @@ pro RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_pac
     ; tolvelo  = tolspace / t                      ; vector: the more time remaining, the smaller the v error has to be
     ; time_error = body_radius * tolspace / 100.   ; time error allowed - time for 100 km/s particle to travel tolspace
     ; Keep it simple here:    
-    tolspace   = 25.   ; km   SPATIAL TOLERANCE PER STEP
-    tolvel     = 0.25  ; km/s VELOCITY TOLERANCE PER STEP  
-    time_error = 10.   ; s NOT ACTUALLY UTILIZED (ACCEPT FOR THE FINAL LOOP TIMEOUT)
+      tolspace   = 25.   ; km   SPATIAL TOLERANCE PER STEP
+      tolvel     = 0.25  ; km/s VELOCITY TOLERANCE PER STEP  
+      time_error = 10.   ; s NOT ACTUALLY UTILIZED (ACCEPT FOR THE FINAL LOOP TIMEOUT)
 
   sl     = size(loc)
   h      = float(replicate(timestep, sl[2]))  ; Initial guess for a time step size (seconds)
   safety = .9
   shrink = -.25
   grow   = -.2
-  fcor   = 1./15.   ;fifth-order correction factor
+  fcor   = 1./15.   ;fifth-order correction factor per numerical recipees. 
   done   = 0
   count  = 0
   hold   = h
@@ -252,7 +257,7 @@ pro RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_pac
       t = t[moretogo]
       h = (h le t)*h + (h gt t)*t                                   ; h cannot be bigger than the integration time left, clamp it there if need be
 
-    Case Step_Type of
+    Case Step_Type of                                               ; Is the integration timestep the same for all particles, or adaptive (per Numerical Recipes) 
       'Fixed': loc[*,moretogo] = RK_4_step(loc[*,moretogo], h, ionizelife)   
       'Adaptive': begin
         
@@ -321,7 +326,7 @@ pro RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_pac
             if N_calldone ge 0 then loc[8,moretogo[insig[calldone]]] = loc[9,moretogo[insig[calldone]]]  ; These integrations are almost done, but the remaining timestep is too short to make any difference
           endif ; no change in position
           
-      end ; Adaptive Step
+      end ; End Adaptive Step Case (versus fix time step case. 
     endcase
 
     ; Check for particles hitting the body
@@ -447,12 +452,12 @@ pro RK4_integrate_adaptive, loc, reimpact_loc, bounce, ionizelife, atoms_per_pac
                           loc[5:7,bounce_indicies[q]] = Velocity_vector_WRT_Absolute * V_final[q]   ; write the vector back into the loc array, and scale it velocity                  
                       endfor
                endif ; N_bounced gt 0
-               print, string(N_reimpacts, format = '(I6)'),' particles collided with the surface,', $
+               print, string(N_reimpacts, format = '(I6)'),' particles collided with '+body+'''s surface,', $
                       string(N_bounced, format = '(I6)'),' bounced (T-depen Sticking & Thermal Accommodation = '+strcompress(thermal_accom_coeff)+')'
         ENDIF ELSE BEGIN                                              ; bounce keyword is not set
           loc[4,moretogo[Hit_Body]] = 0.                              ; set the fractional content of packets that hit the surface to zero
           loc[8,moretogo[Hit_Body]] = loc[9,moretogo[Hit_Body]]       ; set the time left in the integration to zero (because t = loc(9,*)-loc(8,*))
-          print, string(N_reimpacts, format = '(I6)'),' particles collided with the surface (bounce keyword not set at input)'
+          print, string(N_reimpacts, format = '(I6)'),' particles collided with '+body+'''s surface (bounce keyword not set at input)'
         ENDELSE    
       endif
 
