@@ -6,10 +6,16 @@ COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in
   N_particles = N_elements(loc[0,*])
 
   ; Calculate the flatness coefficient and planetary radius
-    cspice_bodvrd, body, 'RADII', 3, radii
-    re   = radii[0]
-    rp   = radii[2]
-    flat = ( re - rp ) / re
+    
+    if strmid(body, 0, 3) eq '100' then begin
+      re   = 1.                               ; set cometary radii to 1 km
+      flat = 0.                               ; spherical      
+    endif else begin
+      cspice_bodvrd, body, 'RADII', 3, radii
+      re   = radii[0]
+      rp   = radii[2]
+      flat = ( re - rp ) / re
+    endelse
 
 ; ================================================= LAUNCH SPEEDS =================================================================================================
 
@@ -63,6 +69,29 @@ COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in
     distribution_parameters = {Kappa_Structure, Distribution:Distribution, Temperature:Temperature, Kappa:Kappa}
     speed = generate_velocity_distribution(N_particles, distribution_parameters)
   endif
+  
+  if STRPOS(speed_distribution, 'Johnson_2002') eq 0 then begin ;cf. Johnson et al. 2002 doi.org/10.1006/icar.2001.6763
+    case Particle_data.name of
+      'Na': begin
+              U_param = 0.052
+              x_param = 0.7
+            end
+      'K' : begin
+              U_param = 0.02
+              x_param = 0.25
+            end
+      else: begin
+            print, 'Distribution undefined in Johnson et al. (2002) for species: ', Particle_data.name 
+            stop
+            end
+    endcase 
+    Distribution = 'Johnson_2002' 
+    distribution_parameters = {Johnson_2002_Structure, Distribution:Distribution, U_param:U_param, x_param:x_param}
+    speed = generate_velocity_distribution(N_particles, distribution_parameters)
+    ; NOTE: Assumed preferentially upward as the cosine of the surface normal (as in a flux distribution), Leblanc et al. 2002 used 2cos(theta)
+  endif
+
+
   if STRPOS(speed_distribution, 'Shematovich') eq 0 then begin
     Distribution = 'Shematovich'
     readcol, Directory+'Shematovich_2013_Fig5.txt', F='A,A', v1, v2, DELIMITER = ',' ;'Shematovich (2013) Figure 5'
@@ -74,7 +103,7 @@ COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in
       eV_over_m_per_s = 1. / sqrt(2.*1.*1.60218e-19/Particle_data.mass)
       PDF = PDF*eV_over_m_per_s ;convert hydrogen energy in eV to joules and then to velocity in m/s
 
-    Temperature = 800. ;meaningless here, but needed to set a somewhat arbitrarty upper bound on the randomn velocities within the CDF
+    Temperature = 800. ;meaningless here, but needed to set a somewhat arbitrary upper bound on the randomn velocities within the CDF
     distribution_parameters = {Shematovich_Structure, Distribution:Distribution, Temperature:Temperature, PDF:PDF, Velocity:Velocity}
     speed = generate_velocity_distribution(n_elements(loc[9,*]), distribution_parameters)
     isotropic_release = 1
@@ -86,7 +115,9 @@ COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in
     STRMATCH(surface_distribution, 'Global', /FOLD_CASE): BEGIN                                                           ; Generate isotropic latitudes and longitudes for all particles
         lat = asin(1.d - 2.d*randomu(seed, N_particles, /double))             ; gives a random number, -90 to 90 degrees (in radians) weighted towards the equator (more surface area per unit latitude)
         lon = 360.d*randomu(seed, N_particles, /double) /!RADEG               ; gives random longitudes 0 to 360 (in radians)
-        cspice_pgrrec, body, lon, lat, replicate(0.D, N_particles), re, flat, release_points_body_fixed; convert these to cartesian, body fixed coords untis of planetary radii here, not km
+        if strmid(body, 0, 3) eq '100' then $                                 ; Small bodies can't do a complext lat & lon to cartesian coordinate transform, but planets can...
+        release_points_body_fixed = transpose([[cos(lat)*cos(lon)], [cos(lat)*sin(lon)], [sin(lat)]]) else $
+        cspice_pgrrec, body, lon, lat, replicate(0.D, N_particles), re, flat, release_points_body_fixed; convert these to cartesian, body fixed coords units of planetary radii here, not km
         release_points_J2000 = release_points_body_fixed / re                 ; since these are random and isotropic in x, y, z, the reference frame does not matter, use body radii coordinates
     END  
     STRMATCH(surface_distribution, 'Dayside', /FOLD_CASE): BEGIN
@@ -156,7 +187,7 @@ COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in
         for i = 0, N_Particles - 1 do begin
           cspice_pxform, 'IAU_'+body, 'J2000', ephemeris_time - loc[9,i], frame_rotate_matrix
           cspice_mxv, frame_rotate_matrix, release_point_body_fixed, release_point_J2000_frame
-          release_points_J2000[*,i]      = release_point_J2000_frame / radii[0] ;the initial packet starting points in cartesian units of planetary radii
+          release_points_J2000[*,i]      = release_point_J2000_frame / re  ; the initial packet starting points in cartesian units of planetary radii, this get's scaled back into km later
           release_points_body_fixed[*,i] = release_point_body_fixed
         endfor
 
@@ -195,7 +226,7 @@ COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in
         for i = 0, N_Particles - 1 do begin
           cspice_pxform, 'IAU_'+body, 'J2000', ephemeris_time - loc[9,i], frame_rotate_matrix
           cspice_mxv, frame_rotate_matrix, release_points_body_fixed[*,i], release_point_J2000_frame
-          release_points_J2000[*,i]      = release_point_J2000_frame / radii[0] ;the initial packet starting points in cartesian units of planetary radii
+          release_points_J2000[*,i]      = release_point_J2000_frame / re ;the initial packet starting points in cartesian units of planetary radii
         endfor
         
       ;------------------------------------hack------------------------------------------------------------------------------  
@@ -220,15 +251,20 @@ COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in
     ELSE: PRINT, 'Undefined spatial distribution requested as an input'  
   ENDCASE
 
-  ; The final coordinates. Units of Body-radii. Body-centered J2000 coordinates
+  ; THE FINAL LAUNCH COORDINATES. UNITS OF BODY-RADII. BODY-CENTERED J2000 COORDINATES
     loc[0:2,*] = temporary(release_points_J2000) ; Allocate the release coordinate to the initialize the loc array
 
   if keyword_set(debug) then begin
     angles_from_normal = fltarr(N_particles) ; for inspecting the ejection angle wrt local surface normal vector
-    cspice_recpgr, body, release_points_body_fixed, radii[0], flat, longitudes, latitudes, radius ; Convert to planetographic latitude and longitude, in the 'IAU_' body fixed frame
+
+    if strmid(body, 0, 3) eq '100' then cspice_reclat, release_points_body_fixed, radius, longitudes, latitudes else $
+      cspice_recpgr, body, release_points_body_fixed, re, flat, longitudes, latitudes, radius ; Convert to planetographic latitude and longitude, in the 'IAU_' body fixed frame
+
     cgplot, (longitudes*!radeg + 360.) mod 360., latitudes*!radeg, psym=3, xr=[0,360], yr=[-90,90], title='Red: Sub-Sol Blue: Sub-Obs' ; particle launch coordinates 
-    cgplot, (sub_solar_lon*!radeg + 360.) mod 360., sub_solar_lat*!radeg, psym = 16, symsize = 2, color = 'red', /overplot             ; the sub-solar point
-    cgplot, (sub_observer_lon*!radeg + 360.) mod 360., sub_observer_lat*!radeg, psym = 16, symsize = 2, color = 'blue', /overplot      ; the sub-observer poin
+    if STRMATCH(surface_distribution, 'Dayside', /FOLD_CASE) or STRMATCH(surface_distribution, 'Point*', /FOLD_CASE) THEN BEGIN
+      cgplot, (sub_solar_lon*!radeg + 360.) mod 360., sub_solar_lat*!radeg, psym = 16, symsize = 2, color = 'red', /overplot             ; the sub-solar point
+      cgplot, (sub_observer_lon*!radeg + 360.) mod 360., sub_observer_lat*!radeg, psym = 16, symsize = 2, color = 'blue', /overplot      ; the sub-observer point
+    endif  
   endif
 
 ; ============================================== LAUNCH DIRECTIONS =================================================================================================
@@ -284,7 +320,8 @@ endif
 
 ;---------------------------------MAXWELL BOLZMANN FLUX DISTRIBUTIONS ARE *anisotropic* PREFERENTIALLY RADIAL (I.E. NOT ISOTROPIC)--------------------------------------------------------------------------------- 
 ; weight ejectrion angles as cos of the surface normal
-  if STRPOS(speed_distribution, 'MBF') eq 0 then begin
+  if ((STRPOS(speed_distribution, 'MBF') eq 0) or (STRPOS(speed_distribution, 'Johnson_2002') eq 0)) then begin
+    window, 4
   
     angles_from_normal = fltarr(N_particles)
   
@@ -340,8 +377,8 @@ endif
         ;check to be sure these have a cosine like dependence . . . should peak at 45 degrees       
         if keyword_set(debug) then cgHISTOPLOT, angles_from_normal, binsize = 2.,xtitle = 'Ejection Angle from Surface Normal (Degrees)', Ytitle = 'Number of particles' 
   endif
-  
-;---------------------------------CONE-SHAPED EJECTA ARE KNOWN IN METEOR IMPACT DUST--------------------------------------------------------------------------------- 
+
+;---------------------------------CONE-SHAPED EJECTA ANGLES (KNOWN IN METEOR IMPACT DUST)--------------------------------------------------------------------------------- 
 ; cf. Horanyi et al. 2015 Nature 
 ;     Bernardoni, E. A., Szalay, J. R., & Horányi, M. (2018). Impact Ejecta Plumes at the Moon. Geophysical Research Letters. doi:10.1029/2018gl079994 
 ;     Szalay et al. (2018)
@@ -383,7 +420,7 @@ if STRPOS(speed_distribution, 'Cone') eq 0 then begin
 
   phi = 360.*randomu(seed,N_particles)/!RADEG  ;gives random numbers evenly distributed between 0 and 360 degrees (in radians), random and isotropic in azimuth
 
-  ;where in a spherical coordinate system where z is defined as polar_angle_distribution (theta) = 0 is the z axis, phi is the angle relative to the x axis.
+  ; where in a spherical coordinate system where z is defined as polar_angle_distribution (theta) = 0 is the z axis, phi is the angle relative to the x axis.
   loc[5,*]=sin(theta)*cos(phi)  ;the x-direction
   loc[6,*]=sin(theta)*sin(phi)  ;the y-direction
   loc[7,*]=cos(theta)           ;the z-direction
@@ -407,7 +444,7 @@ if STRPOS(speed_distribution, 'Cone') eq 0 then begin
     if keyword_set(debug) then angles_from_normal[q] = !Radeg * cspice_vsep(loc[0:2,q], loc[5:7,q]) ; for each particle compute the ejection angle relative to normal as a check
   endfor
   ;check to be sure these have a cosine like dependence . . . should peak at 45 degrees
-  if keyword_set(debug) then cgHISTOPLOT, angles_from_normal, binsize = 2.,xtitle = 'Ejection Angle from Surface Normal (Degrees)', Ytitle = 'Number of particles'
+  if keyword_set(debug) then cgHISTOPLOT, angles_from_normal, binsize = 2., xtitle = 'Ejection Angle from Surface Normal (Degrees)', Ytitle = 'Number of particles'
 
 endif  
 return
