@@ -1,6 +1,6 @@
 Pro load_particle_data, test_particle, line
 
-COMMON Model_shared, Body, Ephemeris_time, Seed, Directory, Particle_data, Solar_data, Debug
+COMMON Model_shared, Body, Ephemeris_time, Obs_Body_Ltime, Parent_ID, Seed, Directory, Particle_data, Line_data, Debug
 
 ;===================================FORMAT NAME STRINGS===============================================
 
@@ -11,6 +11,7 @@ CASE test_particle OF
   'Mg': NAME = 'Mg'
   'K': NAME = 'K'
   'H2O': NAME = 'H!D2!NO' 
+  'SO2': NAME = 'SO!D2!N' 
 ENDCASE
 
 ;===========================================PARTICLE MASSES======================================================= 
@@ -23,6 +24,7 @@ CASE test_particle OF
   'Mg': mass = 24.305*amu
   'K': mass = 39.0983*amu
   'H2O': mass = 18.01528*amu
+  'SO2': mass = 64.066*amu
 ENDCASE
 
 ;=========================================IONIZATION POTENTIALS===================================================
@@ -36,6 +38,7 @@ CASE test_particle OF ;units are eV
   'K': Ionization_potential = 4.3407
   'H2O': Ionization_potential = 5.11359 ;H20 threshold is for all dissociation in to OH and H (Herzberg, 1966)
                                         ;12.65eV is H2O--> H2O+ (cf. http://webbook.nist.gov/cgi/cbook.cgi?ID=C7732185&Units=SI&Mask=20)
+  'SO2': Ionization_potential = 12.5    ;(cf. https://webbook.nist.gov/cgi/cbook.cgi?ID=C7446095&Mask=20)
 ENDCASE
 
 ;=====================================PHOTO-IONIZATION CROSS-SECTIONS===============================================
@@ -129,6 +132,10 @@ CASE test_particle OF
       if keyword_set(debug) then plot, Cross_wavelength, photo_cross_sec, /ylog, /xlog, Title = 'H20 Photo-Ionization Cross-Section',$
         xtitle = 'nm', ytitle = 'cm!u2!n', charsize = 1.6 
       Result = DIALOG_MESSAGE('H2O ANTI-SUNWARD ACCELERATION IS TO ARBITRARILY SET 20 CM / S^2 at 1 AU')  
+   end
+   'SO2': begin
+      Cross_wavelength = [!values.F_NaN] ; To Do...
+      photo_cross_sec  = [!values.F_NaN] ; To Do...
    end
 endcase
 

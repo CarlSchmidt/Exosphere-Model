@@ -5,11 +5,11 @@ Function Vector_Sep_angle, V1, V2 ;finds the angular separation between V2 & V1 
   return, ACOS( DOT_PRODUCT / (MAGNITUDE_v1*MAGNITUDE_v2) )
 end
 
-Function Vector_Sep_angle2, V1, V2 ;Alternate way to find the angular separation between V2 & V1 the way cspice_sep would do it 
-  v3 = v1 - v2
-  length = v3 / SQRT( TOTAL( V3 * V3, 1 ) )
-  return, 2.d * asin( length/2.d )
-end
+;Function Vector_Sep_angle2, V1, V2 ;Alternate way to find the angular separation between V2 & V1 the way cspice_sep would do it 
+;  v3 = v1 - v2
+;  length = v3 / SQRT( TOTAL( V3 * V3, 1 ) )
+;  return, 2.d * asin( length/2.d )
+;end
 
 function illumination, time, x, y, z
 
@@ -20,7 +20,11 @@ function illumination, time, x, y, z
   ; Assumes all bodies are circular and uses equatorial radius.
   ; Ignores Solar limb darkening
   
-  COMMON Model_shared, Body, Ephemeris_time, Seed, Directory, Particle_data, Line_data, Debug
+  COMMON Model_shared, Body, Ephemeris_time, Obs_Body_Ltime, Parent_ID, Seed, Directory, Particle_data, Line_data, Debug
+  
+; Define an array to hold the fractional illimunation of the number of points for which the illumination fraction is calculated
+  illu            = replicate(1., n_elements(x))
+  if strmid(body, 0, 3) eq '100' then goto, skip_illumination_calculation_for_small_bodies
   
   cspice_bodvrd, 'Sun', 'RADII', 3, Solar_radius ; Find the planet's radius in Km
   cspice_bodvrd, Body , 'RADII', 3, Body_radius  ; Find the Body's radius in Km
@@ -31,13 +35,13 @@ function illumination, time, x, y, z
   cspice_bods2c, body, bodyID_code, found
   radius_found = cspice_bodfnd( bodyID_code, "RADII" )
   if ((STRPOS(string(bodyID_code), '99') eq -1) and (strlen(strcompress(bodyID_code, /remove_all)) eq 3)) then begin 
-    Parent_ID = strcompress(strmid(strcompress(bodyID_code, /remove_all),0,1) + '99')
-    cspice_bodvrd, Parent_ID, 'RADII', 3, Parent_Radius ;Find G*Mass in in Km^3/s^2 
+    Parent_Planet = strcompress(strmid(strcompress(bodyID_code, /remove_all),0,1) + '99')
+    cspice_bodvrd, Parent_Planet, 'RADII', 3, Parent_Radius ;Find G*Mass in in Km^3/s^2 
     Parent_radius = Parent_radius[0]
   endif
 
 ; Find the position of the body WRT the Sun for each particles time in units of km
-  CSPICE_SPKPOS, body, ephemeris_time - REFORM(time), 'J2000', 'NONE', 'Sun', Sun2body, ltime  ; HACK----Not sure if light time is importnant here!!!
+  CSPICE_SPKPOS, body, ephemeris_time - REFORM(time), 'J2000', 'NONE', 'Sun', Sun2body, ltime  ; HACK --- Not sure if light time is important here!!!
   sun_particle        = Sun2body[0:2,*] + [x,y,z]  ;Calculate the vectors from the Sun to the particles
   dist2body           = SQRT( TOTAL( [x,y,z] * [x,y,z], 1 ) )
   dist2Sun            = SQRT( TOTAL( sun_particle * sun_particle, 1 ) )
@@ -45,7 +49,7 @@ function illumination, time, x, y, z
   angular_radius_Sun  = asin(solar_radius / dist2Sun) 
 
   ; If the body is a moon, then also find the position of Parent WRT the Sun for each particles time in units of km
-    if keyword_set(Parent_ID) then begin
+    if (long(Parent_ID) ne 0L) and (long(Parent_ID) le 9L) then begin
       CSPICE_SPKPOS, Parent_ID, ephemeris_time - REFORM(time), 'J2000', 'NONE', 'Sun', Sun_Parent, ltime  ; HACK----Not sure if light time is importnant here!!!
       sun2particle = Sun_Parent[0:2,*] + [x, y, z]  ;Calculate the vectors from the sun to the particles
       CSPICE_SPKPOS, Parent_ID, ephemeris_time - REFORM(time), 'J2000', 'NONE', Body, Body2Parent, ltime 
@@ -60,18 +64,36 @@ function illumination, time, x, y, z
   sun2particle = sun_particle ; Hack HAck Hack!!! Untested and this could break something comparing Mercury to the Moon!!! Hack HAck Hack!!! 
   theta = Vector_Sep_angle( [x,y,z], sun2particle )
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   ; And the Parent-Particle-Sun angle for each packet  
-    if keyword_set(Parent_ID) then begin
-      ;Parent_theta = Acos( (x_to_Parent*Sun_Parent[0,*] + y_to_Parent*Sun_Parent[1,*] + z_to_Parent*Sun_Parent[2,*]) $
-      ;                      / (sqrt((Sun_Parent[0,*]^2.) + (Sun_Parent[1,*]^2.) + (Sun_Parent[2,*]^2.)) * dist2Parent))
-    
-;      Parent_theta = Acos( (x_to_Parent*sun2particle[0,*] + y_to_Parent*sun2particle[1,*] + z_to_Parent*sun2particle[2,*]) $
-;                            / (sqrt((sun2particle[0,*]^2.) + (sun2particle[1,*]^2.) + (sun2particle[2,*]^2.)) * dist2Parent))
+    if (long(Parent_ID) ne 0L) and (long(Parent_ID) le 9L) then begin
       Parent_theta = Vector_Sep_angle( [x_to_Parent,y_to_Parent,z_to_Parent], -sun2particle )
     endif  
-
-; Define an array to hold the fractional illimunation of the number of points for which the illumination fraction is calculated
-  illu            = replicate(1., n_elements(x)) 
 
 ; Determine the fractional illumination: BODY OCCULTING SUN
   Partial_occult  = where( (theta lt (angular_radius_body + angular_radius_sun))    and (theta gt abs(angular_radius_body - angular_radius_sun)), N_partial_occults )
@@ -98,7 +120,7 @@ function illumination, time, x, y, z
   endif
   
 ; If "Body" is a moon, then also determine the fractional illumination: PARENT BODY OCCULTING SUN
-  If keyword_set(Parent_ID) then begin
+  if (long(Parent_ID) ne 0L) and (long(Parent_ID) le 9L) then begin
     partial_Parent_occult  = where( (Parent_theta lt (angular_radius_Parent + angular_radius_sun)) and (Parent_theta gt abs(angular_radius_Parent - angular_radius_sun)), N_partial_Parent_occults )
     total_Parent_occult = where( (Parent_theta le abs(angular_radius_Parent - angular_radius_sun)) and (angular_radius_Parent ge angular_radius_sun), N_total_Parent_occults )
     Parent_transit      = where( (Parent_theta le abs(angular_radius_Parent - angular_radius_sun)) and (angular_radius_Parent lt angular_radius_sun), N_Parent_transits )
@@ -140,5 +162,6 @@ function illumination, time, x, y, z
   ; ERROR HANDLING: Make sure no there are no infinite, NaN or negative pixels
   check_bad_pixels = WHERE( FINITE(Illu, /NAN), count_bad_pixels) 
   if count_bad_pixels gt 0 then stop
+  skip_illumination_calculation_for_small_bodies:
 return, illu
 end

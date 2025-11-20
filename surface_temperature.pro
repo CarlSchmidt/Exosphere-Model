@@ -70,6 +70,33 @@ body eq 'Ganymede': begin
     ;'2015-Feb-27 12:24' ;time when Ganymede is mid Jovian eclipse in its orbit
     ;'2015 MAR 03 02:24' ;time when Ganymede is at Jovian noon in its orbit. This is orbital longitude zero in Francois' convention
 end ; Ganymede
+body eq 'Callisto': begin
+  Albedo = [ .19, .235 ] ; Leading (Jovian Dawn), trailing (Jovian Dusk) Visual albedos in Calvin (1995)
+  ntinc = 30000 ; number of time increments in the day.
+  Density = .92 ;[make_array(7, value = .15), make_array(25, value = .92)] ;density in g cm^-3 from Morrison & Chruikshank, 1973 and Abramov and Spencer, 2008 for Europa, respectively
+  ;Thermal_inertia = [make_array(7, value = 3.25e4), make_array(25, value = 5e4)] ;see Moore et al. Page 402 in the Jupiter 2004 Book
+  ;
+  
+  Thermal_inertia = 3.25e4;[make_array(7, value = 2.2e4), make_array(25, value = 7.0e4)]
+  
+;  zarr=[0.1*(1+indgen(7)), 7+0.2*(1+indgen(25))]  ;thickness in cm Spencer thesis gives heat capacity / unit area = 1.6e6 = dens * cp * thickness.
+;zarr=[0.1*(1+indgen(7)), .7+0.2*(1+indgen(25))]
+
+;zarr=[0.02*(1+indgen(7)),1+0.1*(1+indgen(25))]
+  Emissivity = .90 ; Camarca et al. 2023
+  Thermal_conductivity = 2.52e2 ;ergs cm ^(-1) Kelvin ^(-1) sec ^(-1) ;from Abramov and Spencer, 2008 for Europa
+  Specific_Heat = 1.e7 ;erg g^(-1) K^(-1) ; Spencer thesis,  NOTE: 1.96e7 is from the Vance and Goodman chapter in the Europa book (Univ of Arizona Press)
+  Rotation_rate = 16.689017  ;days (https://nssdc.gsfc.nasa.gov/planetary/factsheet/joviansatfact.html) --> should SYNODIC be longer?
+  diurnal_period = 16.689017 ;days --> should SYNODIC be longer?
+  
+  ice = 3 ; water ice sublimation cooling
+  ;corrfac = 5.
+  heatflow = 0. ;.05 * 1.e7 / 1.e4 ;W/m-2 upper limit from Spencer et al., 1999 citing G. W. Ojakangas and D. J. Stevenson, Icarus 81, 220 (1989), to ergs cm^-2 s-1
+  eclipse = [0., 0.] ;frequency of eclipse in fractional Ganymede days
+  min_dark_temp = 80.
+  if keyword_set(time) then time=time else time = '2025-Oct-18 14:44' ;;time when Callisto is at Jovian noon in its orbit. This is orbital longitude zero in Francois' convention
+end ; 
+
 body eq 'Moon': begin
     ;*****BEWARE: planetary longitude decreases over time, opposite the convention on other bodies!!! 
     Albedo = 0.11 ; Bond albedo, NASA Fact Sheet
@@ -126,7 +153,25 @@ endcase ; constants
      ;sunlon = (findgen(180)*2-180) / !radeg ;high resolution
      ;sunlat = (findgen(178)-89) / !radeg   ;no interpolation 
      
-     sunlat = (findgen(45)*4-88) / !radeg   ;high resolution
+     ;sunlat = (findgen(45)*4-88) / !radeg   ;high resolution
+     
+     
+     
+     
+     
+     
+
+     
+     
+     
+     
+     
+     
+     
+     
+     sunlat = (findgen(10)*18 - 81) / !radeg  ;for Callisto hack
+     
+     
      sunlon = (findgen(360)-180) / !radeg   ;no interpolation ---> NEEDED for accuracy!
      Temperature_map = fltarr(n_elements(sunlon), n_elements(sunlat), ntinc)         
         
@@ -135,6 +180,48 @@ endcase ; constants
       cspice_et2utc, ephemeris_time, "C", 0, utc_current
       time_array_insol = ephemeris_time - reverse((findgen(ntinc) / ntinc) * (24.*3600.*diurnal_period))
       insol = time_array_insol ;Initialize array where the insolation vs time will be saved starting with midnight for each time in the for loop below
+
+
+
+
+      ;test read
+      ID = NCDF_OPEN( Directory+body+'_Temperature.nc', /NOWRITE)
+      tempID = ncdf_varid(ID, 'temp')
+      latID = ncdf_varid(ID, 'lat')
+      lonID = ncdf_varid(ID, 'lon')
+      orbital_lonID = ncdf_varid(ID, 'orbital_lon')
+      ;TAAID = ncdf_varid(ID, 'true_anomaly')
+      ncdf_varget, ID, tempID, Temperature
+      ncdf_varget, ID, latID, lat
+      ncdf_varget, ID, lonID, lon ;lon increases with time
+      ncdf_varget, ID, orbital_lonID, orbital_lon ;orbital Longitude (zero eq Jovian Noon)
+      ;ncdf_varget, ID, TAAID, TAA
+      ncdf_close, ID
+
+
+      set_plot,'ps'
+      device, bits_per_pixel=8, filename = Directory+strcompress(body)+'_temp_0.eps', $
+        /portrait, /color, FONT_SIZE=5., XSIZE=6., YSIZE=4., /encapsulated, SCALE=2., /inches
+      !p.charthick=3.
+      !p.charsize=2.
+      !p.font=1
+      device, bits_per_pixel=8, filename = Directory + strcompress(body) + '_Equatorial_Roth.eps', $
+        /portrait, /color, FONT_SIZE=5., XSIZE=6., YSIZE=4., /encapsulated, SCALE=2., /inches
+      DEVICE, SET_FONT='Times', /TT_FONT
+      ;cgplot, findgen(360)/15., temperature[180,90,*], ytitle = strcompress(body) + ' Equitorial Surface Temperature', xtitle = strcompress('UT ' + STRMID(utc_current, 0, 17) + ' - ' + body +' Local Time'), $
+      ;  xrange = [0,24], xstyle = 1., /ynozero
+      
+      cgplot, findgen(360)/15.-11.77, temperature[180,90,*], ytitle = strcompress(body) + ' Sub-Solar Point Temperature [K]', xtitle = strcompress('2025-Sep-23 11:39 UT - ' + body +' Local Time [Hours]'), $
+        xstyle = 1., /ynozero, xr = [-1,1]
+      
+      DEVICE, /CLOSE
+
+      stop
+
+
+
+
+
 
     ;search and identify for eclipses during this time window 
       eclipse_lightswitch = make_array(ntinc, /integer, value = 1)
@@ -266,8 +353,13 @@ endcase ; constants
                     ytitle = 'erg cm!U-2!N s!U-1!N',xtitle = 'Earth Days', xrange = [0, Diurnal_period], xstyle = 1., charsize = 1.4
                 endif
 
+          ;thermprojrs, tsurf, tod, rhel = Heliocentric_distance, alb = alb, rot = diurnal_period, emvty = Emissivity, cp = Specific_Heat,  $
+          ;  rho = density, heatflow = heatflow, nrun=4, ntinc = ntinc, nday = 4, corrfac=corrfac, ice = ice, /blind, insol = insol, zarr = zarr, ti = Thermal_inertia, silent = silent
+
           thermprojrs, tsurf, tod, rhel = Heliocentric_distance, alb = alb, rot = diurnal_period, emvty = Emissivity, cp = Specific_Heat,  $
             rho = density, heatflow = heatflow, nrun=4, ntinc = ntinc, nday = 4, corrfac=corrfac, ice = ice, /blind, insol = insol, zarr = zarr, ti = Thermal_inertia, silent = silent
+
+
 
           if not silent then begin ;make a pretty plot of the temperature history at this geographic location        
             window, 1
@@ -364,6 +456,7 @@ endcase ; constants
   DEVICE, /CLOSE
   if !VERSION.OS_FAMILY eq ('unix' or 'MacOS') then SET_PLOT, 'X'
   if !VERSION.OS_FAMILY eq ('Windows') then SET_PLOT, 'WIN'
+  
 ;format for netcdf    
   if body ne 'Mercury' then begin
     Temperature_Map = congrid(Temperature_Map, 360, 180, 360)     
@@ -464,5 +557,5 @@ plot, Temperature[*, 90, 0], /ynozero
 oplot, [fltarr(90), reform(Temperature[180, *, 0]), fltarr(90)]
 oplot, 80 + (144-80)*(cos((findgen(360)-180.) / !radeg)^.75>0) ;francois' model
 
-stop
+;stop
 End

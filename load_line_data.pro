@@ -18,10 +18,10 @@ Pro LOAD_LINE_DATA, LINE
   ;
   ; MODIFICATION HISTORY:
   ;      C. Schmidt 2010    Written, used Killen et al. 2009 ApJs for solar flux
-  ;      C. Schmidt 2020    Modified for Kurucz model spectra
+  ;      C. Schmidt 2020    Modified for Kurucz model spectra, added Mg 2853
+  ;      C. Schmidt 2020    Modified for near UV spectra (crummy resolution), added Ca 4227
 
-  COMMON Model_shared, Body, Ephemeris_time, Seed, Directory, Particle_data, line_data, Debug
-  
+  COMMON Model_shared, Body, Ephemeris_time, Obs_Body_Ltime, Parent_ID, Seed, Directory, Particle_data, Line_data, Debug
   ;===================================FORMAT NAME STRINGS=================================================
   
   CASE Line OF 
@@ -29,7 +29,8 @@ Pro LOAD_LINE_DATA, LINE
     'OI':        NAME = strcompress('Oxygen 1304'+ cgSymbol('angstrom'))
     'Na-D':      NAME = 'Na D!D1!N + D!D2!N'
     'K-D':       NAME = 'K D!D1!N + D!D2!N'
-    'Mg-2853':   NAME = strcompress('MG 2853'+ cgSymbol('angstrom'))
+    'Mg-2853':   NAME = strcompress('Mg-2853'+ cgSymbol('angstrom'))
+    'Ca-4227':   NAME = strcompress('Ca-4227'+ cgSymbol('angstrom'))
     'H2O':       NAME = 'H!D2!NO' 
   ENDCASE
   
@@ -41,7 +42,8 @@ Pro LOAD_LINE_DATA, LINE
     'OI':        unity_optical_depth = 1.7424e13
     'Na-D':      unity_optical_depth = 1.645e11
     'K-D':       unity_optical_depth = 9.e99 ; TBD
-    'Mg-2853':   unity_optical_depth = 9.e99 ; TBD
+    'Mg-2853':   unity_optical_depth = 3.7e11
+    'Ca-4227':   unity_optical_depth = 1.e11 
     'H2O':       unity_optical_depth = 9.e99 ; TBD
   ENDCASE
   
@@ -57,7 +59,12 @@ Pro LOAD_LINE_DATA, LINE
         numline  = 4500   ; 770.5 nm
         spectrum = 'Kurucz_2005_irradthuwl.dat'   ; Great resolution. WL in nm, flux in flux is in W/m2/nm at 1AU
       end
-    'Mg-2853': begin                              ; Need to use a lower resolution speectrum here. Should 
+    'Ca-4227':  begin  
+        skipline = 123000 ; 4220.91 A
+        numline  = 2400   ; 4244.90 A 
+        spectrum = 'Kurucz_2005_irradthuwl.dat'     ; Great resolution. WL in nm, flux in flux is in W/m2/nm at 1AU
+      end 
+    'Mg-2853': begin                              ; via https://doi.org/10.1016/j.jqsrt.2010.01.036 Need to use a higher resolution spectrum here. 
         spectrum = 'sao2010.solref.converted.txt' ; 0.4 A resolution (poor!), converted to 0.1A intervals. WL in nm, flux in Photons s-1 cm-2 nm-1 at 1AU
       end
   ENDCASE
