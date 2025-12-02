@@ -124,6 +124,32 @@ SetDefaultValue, w3, 1.
       f1          = 6.08e-01  ; Unitless total oscillator strength (from NIST ASD website)
       f2          = 3.03e-01   ; Unitless total oscillator strength (from NIST ASD website)
     end
+    'Fe-I' : begin      
+      N_lines     = 3
+      lamda_rest1 = 3192.5817 ; these vacuum WLs all go from split ground states into (air) wavelength 5167.4881A, tentatively observed in comet 3I
+      lamda_rest2 = 3235.5466  
+      lamda_rest3 = 3265.9880      
+      f1          = 2.82e-04  ; Unitless total oscillator strength (from NIST ASD website)
+      f2          = 1.80e-04  ; Unitless total oscillator strength (from NIST ASD website)
+      f3          = 1.99e-04  ; Unitless total oscillator strength (from NIST ASD website)
+      A1          = 2.37e+05  ; Einstein Aki (from NIST ASD website)
+      A2          = 1.15e+05  ; Einstein Aki (from NIST ASD website)
+      A3          = 8.89e+04  ; Einstein Aki (from NIST ASD website)
+      w1          = A1/(A1+A2+A3) ; Fe I has a multiple J term levels in the ground state, so the branching ratio of the Einstein A matters.
+      w2          = A2/(A1+A2+A3) ; See Chamblain & Hunten (1987) book Eqns 6.2.2 & 6.2.4.
+      w3          = A3/(A1+A2+A3)
+
+;      N_lines     = 2
+;      lamda_rest1 = 3194.1488 ; these vacuum WLs all go from split ground states into (air) wavelength 5171.5960 , tentatively observed in comet 3I
+;      lamda_rest2 = 3237.1561
+;      f1          = 6.77e-04  ; Unitless total oscillator strength (from NIST ASD website)
+;      f2          = 4.40e-04  ; Unitless total oscillator strength (from NIST ASD website)
+;      A1          = 4.43e+05  ; Einstein Aki (from NIST ASD website)
+;      A2          = 2.18e+05  ; Einstein Aki (from NIST ASD website)
+;      w1          = A1/(A1+A2) ; Fe I has a multiple J term levels in the ground state, so the branching ratio of the Einstein A matters.
+;      w2          = A2/(A1+A2) ; See Chamblain & Hunten (1987) book Eqns 6.2.2 & 6.2.4.
+    end    
+
     else : print, 'Requested line has undefined parameters'
   endcase
 
