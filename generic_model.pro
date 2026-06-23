@@ -57,35 +57,35 @@ COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in
   Sun_Body, Boresight_Pixel, Aperture_Corners, Inst_Pointing, Inst_Diameter, Inst_LSF_wav, Line
 
 ;===========================================INPUTS=======================================================================
-directory          = 'C:\IDL\Generic Model V4\read_write\' ; Directory where all other files are read from and written to
+directory          = 'C:\IDL\Generic Model V2\read_write\' ; Directory where all other files are read from and written to
 kernel_directory   = 'C:\SPICE\'                           ; Directory where the spice kernel files live
 
-Body               = '1003667'                            ; e.g., 'Mercury', 'Moon', use NAIF body ID number for comets e.g. '1000012' = 'CHURYUMOV-GERASIMENKO'
-;Body               = 'Mercury'                              ; e.g., 'Mercury', 'Moon', use NAIF body ID number for comets e.g. '1000012' = 'CHURYUMOV-GERASIMENKO'
-;Body               = 'Io' 
-                                                           ; 
-;UTC                = '2013 November 29 14:25'              ; Juno-Europa Flyby (Io in Transit, Europa wester elongation'
+;Body               = '1003667'                            ; e.g., 'Mercury', 'Moon', use NAIF body ID number for comets e.g. '1000012' = 'CHURYUMOV-GERASIMENKO'
+Body               = 'Mercury'                              ; e.g., 'Mercury', 'Moon', use NAIF body ID number for comets e.g. '1000012' = 'CHURYUMOV-GERASIMENKO'
+                                            ; 
+UTC                = '2013 November 29 14:25'             ; Winslow et al. (2020) ICME passage time
 ;UTC                = '2020-Nov-13 23:20'                  ; Mercury Peak Na radiation pressure
 ;UTC                = '2007-Jun-06 12:40'                  ; Mercury Aphelion
-;UTC                = '2018-12-13T16:22:49'                ; Potassium conventional data from Haleakala
+;UTC                = '2026 Aug 05 06:49'                ; PLunar Falcon 9 impact
 ;UTC                = 'Apr 08, 2005 22:10:00'              ; Solar eclipse from McDonald
 ;UTC                = '2022-Sep-29 09:35:00'                ; Rough time of the Juno Europa Flyby
-UTC                = '2020-Jul-15 03:42'                  ; NEOWISE Jul 8
+;UTC                = '2020-Jul-15 03:42'                  ; NEOWISE Jul 8
 if keyword_set(UTC_this_run) then UTC=UTC_this_run else $  ; Use the input specified by the caller, or...
 
 if keyword_set(test_particle_this_run) then test_particle = test_particle_this_run else $   
 test_particle      = 'Na'                                  ; Species to model
                                                            ; Options: 'Na' 
                                                            ;          'Mg'
-                                                           ;          'K'      
+                                                           ;          'K'    
+;test_particle      = 'OH'
 if keyword_set(Line_this_run) then Line = Line_this_run else $          
 Line               = 'Na-D'                                ; Emission line to model
                                                            ; Options: 'Na-D'  
                                                            ;          'Mg-2853'  
                                                            ;          'K-D'                                             
 if keyword_set(Speed_distribution_this_run) then Speed_distribution = Speed_distribution_this_run else $            
-Speed_distribution = 'MBF_150K'                           ; Set the speed distribution the particles will be released with
-;Speed_distribution = 'Johnson_2002'                      ; Set the speed distribution the particles will be released with
+;Speed_distribution = 'MBF_1200K'                       ; Set the speed distribution the particles will be released with
+Speed_distribution = 'Sputtering_ST'                       ; Set the speed distribution the particles will be released with
                                                            ; Options: 'Maxwellian_3000K'  where temperature is variable
                                                            ;          'MBF_3000K'         where temperature is variable 
                                                            ;                              Maxwell-Bolzmann Flux Dist. (V^3)
@@ -95,12 +95,16 @@ Speed_distribution = 'MBF_150K'                           ; Set the speed distri
                                                            ;                              and Vmax specified in km/s 
                                                            ;          'Shematovich'       Shematovich (2013, DOI:10.1134/S0038094613060087), requires an associated input file 
                                                            ;          'Johnson_2002'      Johnson et al. (2002, DOI:10.1006/icar.2001.6763). For Na and K desorption from ice. 
+                                                           ;          'Sputtering_ST'     A Sigmund-Thompson sputtered distribution. See Wurz et al. (2010; DOI:10.1016/j.pss.2010.08.003)
 if keyword_set(Surface_distribution_this_run) then Surface_distribution = Surface_distribution_this_run else $
-Surface_distribution = 'Global'                           ; Set the surface distribution the particles will be released with
+Surface_distribution = 'From_Map'                          ; Set the surface distribution the particles will be released with
+;Surface_distribution = 'Point_[268.,17.]'                          ; Set the surface distribution the particles will be released with
+;Surface_distribution = 'Dayside'                          ; Set the surface distribution the particles will be released with
+
                                                            ; Options: 'Global'            Everywhere uniform
                                                            ;          'Dayside'           Uniform 2pi steradians, centered in sub-solar longitude [-90,90 lat]
                                                            ;          'Point_[lon,lat]'   Specified W. Lon & Lat [degrees]                 
-                                                           ;          'From_Map:'         TBD
+                                                           ;          'From_Map:'         Use a lat lon map of [360,180] in cm^-2 s-1 
 viewpoint =          'Earth'                               ; How view the output:
                                                            ; Options: 'Insert Body Name' (SPICE recognized name, e.g. 'Earth' = Geocentric, or 'STEREO A')
                                                            ;          'Moon Spot'        (from Observatory looking anti-sunward) 
@@ -116,34 +120,34 @@ Image_type             = 'Rayleighs_1.e3'                  ; Scaling for the pos
 if keyword_set(Output_title_this_run) then Output_title=Output_title_this_run else $
 Output_title           = 'Test'                            ; Title of the model's output FITS and Postscript files 
                                                            ; FITS extension 1 contains the metadata with the input parameters. 
-Number_of_particles    = long(2^10-1)                      ; Number of packets of atoms in the simulation, do not exceed 32766 = 2^15-1
-;Number_of_particles    = long(10000) 
+Number_of_particles    = long(2^15-1)                      ; Number of packets of atoms in the simulation, do not exceed 32766 = 2^15-1
 if keyword_set(Time_range_this_run) then Time_range=Time_range_this_run else $
-;Time_range             = [0.,5.]   
-Time_range             = [0.,.5]                        ; When to start and stop releasing particles from the planet [End, Begin] days ago e.g., [0.0, 0.5]                     
+Time_range             = [0.,.1]                           ; When to start and stop releasing particles from the planet [End, Begin] days ago e.g., [0.0, 0.5]                     
+;Time_range             = [.5]
                                                            ; A single element array represents a 1 sec 'pulse' of particles occuring [pulse_time] days ago
-timestep               = 50.                               ; Time step in seconds from the RK4 integrator, use < = 50 s at Mercury 
+timestep               = 40.                               ; Time step in seconds from the RK4 integrator, use < = 50 s at Mercury 
 Step_Type              = 'Fixed'                           ; Flavor of Runge-Kutta step to use: 'Fixed' or 'Adaptive', timestep is the initial guess for the later. !!! NOTE BUG: ADAPTIVE TIMESTEPS W/ BOUNCING IS BROKEN!
 Output_Size_In_Pixels  = [256., 256., 256.]                ; Number of pixels on the [x,y,z] axis of the plot window (keep them all the same for sanity) 
 Center_in_frame        = [1./2., 1./2., 1./2.]             ; [x,y,z] position of Body center within the output field of view, [1./2., 1./2., 1./2.] = centered 
 if keyword_set(Upward_flux_at_exobase_this_run) then Upward_flux_at_exobase=Upward_flux_at_exobase_this_run else $
-Upward_flux_at_exobase = 1.e25                            ; Upward Flux accross the exobase in particles per second, integrated over 2 pi steradians, or for an intantaneous event, e.g. a meteor's total vapourization
-;Upward_flux_at_exobase = 3.75e24                           ; dayside sputtering yeild of .001 atoms/ion precip of 10^10 /s /cm^2 (conservative value from Exner) 
+
+;Upward_flux_at_exobase = 5.2e22                           ; Upward Flux accross the exobase in particles/s, integrated over 2 pi steradians, or for an instantaneous event, e.g. a meteor's total vaporization
+;Upward_flux_at_exobase = 3.9e25 
+;Upward_flux_at_exobase = 3.75e24                          ; dayside sputtering yeild of .001 atoms/ion precip of 10^10 /s /cm^2 (conservative value from Exner) 
+Upward_flux_at_exobase = 2.27389e+024                      ; Szabo's (protons x surface area x proton yield) + (alphas x surface area x alpha yield)
 
 ;Seed                   = 2653553L                         ; A large scalar long integer to seed the random number generator, comment out if initializing randomly. 
 Debug                  = 1                                 ; Set to 1 to output more detail at intermediate steps.        
 exobase_height         = 0.d                               ; Exobase altitude above the surface, units of KM
 outflow_v              = 0.                                ; Outflow velocity in km/s (non-zero for hydrothermal escape / comets)
 if keyword_set(Loop_times_this_run) then Loop_times=Loop_times_this_run else $
-Loop_times             = 1.                              ; How many loops the model should run, runs are stacked and averaged so this sets statistical noise  
-FOV                    = 1200.                               ; ARCSECONDS to a side. Field of View of output images (RA & Dec SKY COORDINATES)
-
-;FOV                    = 28.                               ; ARCSECONDS to a side. Field of View of output images (RA & Dec SKY COORDINATES)
+Loop_times             = 50.                              ; How many loops the model should run, runs are stacked and averaged so this sets statistical noise  
+FOV                    = 10.                               ; ARCSECONDS to a side. Field of View of output images (RA & Dec SKY COORDINATES)
 N_ticks                = 10.                               ; Number of tick marks in the axis of the sky coordinate image
 ecliptic_tickstep      = 1.0                               ; Axis tick step size in Body radii for the 'Above ecliptic' viewings  
 sun_body_tickstep      = 0.5                               ; Axis tick step size in Body radii for the 'Sun-Body' viewings  
 thermal_accom_coeff    = 0.1                               ; For Bounce keyword = 1 only. Thermal accomodation towards the local surface temperature,  (0.62 Hunten et al. 1988)
-Plot_range             = 300.                              ; For 'Above ecliptic' viewing only. Defines the plate scale, the spatial distance of each axis to be plotted in BODY RADII
+Plot_range             = 6.                                ; For 'Above ecliptic' viewing only. Defines the plate scale, the spatial distance of each axis to be plotted in BODY RADII
 ;===========================================KEYWORDS=======================================================================
 Bounce                 = 0                                 ; Particles re-impacting the surface can bounce (=1) or stick (=0) 
 Label_Phase            = 0                                 ; Display the body's phase angle as pixels? MAJOR ISSUE: Needs rotation to plane of sky. 
@@ -206,14 +210,13 @@ restore_aloft          = 0                                 ; restore a loc array
   ; Calculate the number of molecules/atoms that each test particle represents (test particles represent packets of atoms)
     if Maxtime eq mintime then duration = 1. else duration = maxtime-mintime ; duration over which the 'packets' of atoms are released [seconds]
     release_rate = number_of_particles / duration                            ; release rate of particles into the model in particles per second
-    atoms_per_packet = Upward_flux_at_exobase / release_rate                 ; (atoms/s)/(packets/s), the average packet content loc[4,*] MUST BE UNITY INITIALLY.
-  
+    atoms_per_packet = Upward_flux_at_exobase / release_rate                 ; (atoms/s)/(packets/s), the average packet (aka particle) content loc[4,*] MUST BE UNITY INITIALLY.
+
   ; use a fixed photoionization lifetime. Skip the Irradiance.pro calculation of time-dependent lifetimes
     Case test_particle of ; Force photoionization lifetime in seconds (Huebner & Mukherjee, 2015) Above calculation Irradiance.pro yeilds longer lifetimes!
       'Na': ionizelife  = 1./7.26e-6  ; Quiet Sun, Huebner & Mukherjee, 2015
       'Mg': ionizelife  = 1./6.49e-7  ; Huebner & Mukherjee, 2015
       'K' : ionizelife  = 1./2.70e-5  ; Huebner & Mukherjee, 2015
-      'SO2': ionizelife  = !values.F_NaN  ; to do 
     endcase
   
   ; initialize the loc_aloft variable that will hold the cumulative totaled loc array for all airborn particles in the big for loop 
@@ -298,16 +301,16 @@ restore_aloft          = 0                                 ; restore a loc array
     loop_number = fix(loop_number)                                                ; Convert the loop number to an integer 
   
     loc = fltarr(10, Number_of_particles) ;Create a massive array of all particles
-      ; loc(0,*) will be the x coords of all the particles in km [J2000, origin at whatever the body is orbiting]
-      ; loc(1,*) will be the y coords of all the particles in km [J2000, origin at whatever the body is orbiting]
-      ; loc(2,*) will be the z coords of all the particles in km [J2000, origin at whatever the body is orbiting]
-      ; loc(3,*) will be the bodycentric distance of all the particles in km 
-      ; loc(4,*) will be the fractional contant of the original packet (after they hit = 0, ionization (when included) should give a fraction of 1) 
-      ; loc(5,*) will be the x velocity of all the particles in km/s [J2000, origin at whatever the body is orbiting]
-      ; loc(6,*) will be the v velocity of all the particles in km/s [J2000, origin at whatever the body is orbiting]
-      ; loc(7,*) will be the z velocity of all the particles in km/s [J2000, origin at whatever the body is orbiting]
-      ; loc(8,*) will be the age = how long this particle has been tracked already (seconds)
-      ; loc(9,*) will be the time between particle release and image taken in seconds (each packet of particles is released at a different time) 
+      ; loc[0,*] will be the x coords of all the particles in km [J2000, origin at whatever the body is orbiting]
+      ; loc[1,*] will be the y coords of all the particles in km [J2000, origin at whatever the body is orbiting]
+      ; loc[2,*] will be the z coords of all the particles in km [J2000, origin at whatever the body is orbiting]
+      ; loc[3,*] will be the bodycentric distance of all the particles in km 
+      ; loc[4,*] will be the *fractional* content of the packet (equals 1 initially unless weighted, 0 for packets hit w/o bouncing, ionization reduces this during integration] 
+      ; loc[5,*] will be the x velocity of all the particles in km/s [J2000, origin at whatever the body is orbiting]
+      ; loc[6,*] will be the v velocity of all the particles in km/s [J2000, origin at whatever the body is orbiting]
+      ; loc[7,*] will be the z velocity of all the particles in km/s [J2000, origin at whatever the body is orbiting]
+      ; loc[8,*] will be the age = how long this particle has been tracked already [seconds]
+      ; loc[9,*] will be the time between particle release and image taken in seconds [each packet of particles is released at a different time] 
 
     Case n_elements(time_range) of
       1: loc[9,*] = replicate(mintime, Number_of_particles)                       ; A pulse of particles at point in time. Use for impactors
@@ -322,8 +325,7 @@ restore_aloft          = 0                                 ; restore a loc array
     ; The speed is normalized to 1, the velocity is randomly distributed in x,y,z directions 
     ; Make starting locations for particles
       loc[0:2,*] = loc[0:2,*]*(Body_radius[0] + exobase_height) ; Scale the "release state" vectors from body radii coordinates to the exobase (km)        
-      if total(loc[4,*]) eq 0. then loc[4,*] = 1.0              ; Unless weighting is already assigned in RELEASE_STATE, the packet content is initially full 
-      
+      if total(loc[4,*]) eq 0. then loc[4,*] = 1.0              ; Packet content is initially full ***UNLESS weighting is previously specified in RELEASE_STATE***
       loc[5,*] = loc[5,*]*speed + loc[5,*]*outflow_v            ; Give them initial velocities in x; units are km/s, speed array is in km/s
       loc[6,*] = loc[6,*]*speed + loc[6,*]*outflow_v            ; Give them initial velocities in y; units are km/s, speed array is in km/s
       loc[7,*] = loc[7,*]*speed + loc[7,*]*outflow_v            ; Give them initial velocities in z; units are km/s, speed array is in km/s

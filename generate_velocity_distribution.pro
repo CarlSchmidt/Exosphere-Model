@@ -124,7 +124,7 @@ function Sputtering_ST, v, distribution_parameters ; Sigmund Thompson,
   ; See Morrissey et al. 2022 Fig. 3 for sodium energy distribution 
   COMMON Model_shared, Body, Ephemeris_time, Obs_Body_Ltime, Parent_ID, Seed, Directory, Particle_data, Line_data, Debug
   SBE = distribution_parameters.SBE
-  m   = particle_data.mass                        ;  Mass of the test particle in kg
+  m   = particle_data.mass                                ; Mass of the test particle in kg
   E_e = (1./2.)*m*(v^2.) / 1.60217634e-19                 ; Indep variable: Energy converted from Joules to eV
   E_i = 1.e3                                              ; Energy of the Projectile particle in eV, use 1 keV protons for an estimate
   E_b = SBE                                               ; Surface binding energy in units of eV
