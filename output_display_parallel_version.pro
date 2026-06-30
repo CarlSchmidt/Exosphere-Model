@@ -7,8 +7,9 @@ pro output_display, loc, g, atoms_per_packet, Image_type, loop_number, part, Lab
 ;    -Changed Plot_Range to FOV: from planetary radii to arcseconds ---> need to figure out above ecliptic scale in this case!
 ;                                 C. Schmidt, Nov 2018
 
-COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in_frame, viewpoint
-COMMON Model_shared, Body, Ephemeris_time, Seed, Directory, Particle_data, Line_data, Debug
+COMMON Model_shared, Body, Ephemeris_time, Obs_Body_Ltime, Parent_ID, Seed, Directory, Particle_data, Line_data, Debug
+COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in_frame, viewpoint, FOV, N_ticks, Ecliptic_Tickstep, Sun_Body_Tickstep, Observatory, Above_Ecliptic, $
+  Sun_Body, Boresight_Pixel, Aperture_Corners, Inst_Pointing, Inst_Diameter, Inst_LSF_wav, Line
 
 
 FOV = 60. ;Field of view in arcseconds FIX FOR NOW HACK HACK!!!

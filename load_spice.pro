@@ -1,7 +1,8 @@
 PRO LOAD_SPICE, Kernel_Directory
 
-COMMON Model_shared, Body, Ephemeris_time, Seed, Directory, Particle_data, Line_data, Debug
-COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in_frame, viewpoint, FOV, N_ticks, Tickstep, Observatory, Above_Ecliptic
+COMMON Model_shared, Body, Ephemeris_time, Obs_Body_Ltime, Parent_ID, Seed, Directory, Particle_data, Line_data, Debug
+COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in_frame, viewpoint, FOV, N_ticks, Ecliptic_Tickstep, Sun_Body_Tickstep, Observatory, Above_Ecliptic, $
+  Sun_Body, Boresight_Pixel, Aperture_Corners, Inst_Pointing, Inst_Diameter, Inst_LSF_wav, Line
 
   ; Remove existing kernel Data
     CSPICE_KTOTAL, 'all', count

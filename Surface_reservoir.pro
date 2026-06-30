@@ -8,8 +8,9 @@ Pro Surface_reservoir
       Brightness_multiplier_Na      = 1.6
       Brightness_multiplier_Mg      = 0.6
 
-COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in_frame, viewpoint, FOV, N_ticks, Tickstep, Observatory, Above_Ecliptic, Boresight_Pixel, Aperture_Corners
-COMMON Model_shared, Body, Ephemeris_time, Seed, Directory, Particle_data, Line_data, Debug
+COMMON Model_shared, Body, Ephemeris_time, Obs_Body_Ltime, Parent_ID, Seed, Directory, Particle_data, Line_data, Debug
+COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in_frame, viewpoint, FOV, N_ticks, Ecliptic_Tickstep, Sun_Body_Tickstep, Observatory, Above_Ecliptic, $
+  Sun_Body, Boresight_Pixel, Aperture_Corners, Inst_Pointing, Inst_Diameter, Inst_LSF_wav, Line
 
 ; define the time window to be plotted  
   plot_times       = ['2011-Jun-12 08:00', '2011-Dec-05 06:00'] ; times to plot (UTC) two mercury years

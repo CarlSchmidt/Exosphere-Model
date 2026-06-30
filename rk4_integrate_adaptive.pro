@@ -37,26 +37,34 @@ function RK_4_acceleration, Body_xyz, Sun_xyz, time, v
 ;      gravity_x = (GM_Body * x / r_Body3) + (GM_Sun * sun_particle[0,*] / r_Sun3) + (GM_Parent * parent_particle[0,*] / r_Parent3)
 ;      gravity_y = (GM_Body * y / r_Body3) + (GM_Sun * sun_particle[1,*] / r_Sun3) + (GM_Parent * parent_particle[1,*] / r_Parent3)
 ;      gravity_z = (GM_Body * z / r_Body3) + (GM_Sun * sun_particle[2,*] / r_Sun3) + (GM_Parent * parent_particle[2,*] / r_Parent3)      
-      gravity_x = (GM_Body * x / r_Body3) + (GM_Parent * parent_particle[0,*] / r_Parent3)   ; Ignore solar gravity for frames in a planetary barycenter
-      gravity_y = (GM_Body * y / r_Body3) + (GM_Parent * parent_particle[1,*] / r_Parent3)
-      gravity_z = (GM_Body * z / r_Body3) + (GM_Parent * parent_particle[2,*] / r_Parent3) 
+      gravity_x = (GM_Body * x / r_Body3) + 1. * (GM_Parent * parent_particle[0,*] / r_Parent3)   ; Ignore solar gravity for frames in a planetary barycenter
+      gravity_y = (GM_Body * y / r_Body3) + 1. * (GM_Parent * parent_particle[1,*] / r_Parent3)
+      gravity_z = (GM_Body * z / r_Body3) + 1. * (GM_Parent * parent_particle[2,*] / r_Parent3) 
   endif else begin
     ; Cartesian gravity in km/s^2
       gravity_x = (GM_Body * x / r_Body3) + (GM_Sun * sun_particle[0,*] / r_Sun3)                                  
       gravity_y = (GM_Body * y / r_Body3) + (GM_Sun * sun_particle[1,*] / r_Sun3) 
       gravity_z = (GM_Body * z / r_Body3) + (GM_Sun * sun_particle[2,*] / r_Sun3) 
   endelse
-
+  
   ; Note that particle orbit's will not be correct without the Sun's / Parent bodies' gravity.
   ; Project the acceleration along a vector along the sun-atom line
     radaccel_x = arad * sun_particle[0,*] / helio_dist
     radaccel_y = arad * sun_particle[1,*] / helio_dist
     radaccel_z = arad * sun_particle[2,*] / helio_dist
-
+    
+  ; Define a collisional radius within which radiation acceleration does not act
+;    r_collisional = 10000.  ; collisional radius in km
+;    body_dist = r_body3^(1/3.)
+;    scale_radaccel = body_dist gt r_collisional                                   ; alternative for hard sphere
+;    scale_radaccel = (1 - exp(-(body_dist/r_collisional)^10.)) / (1 - exp(-1))    ; alternative with no sharp knee at r_collisional
+;    scale_radaccel = (exp((body_dist/r_collisional)^5.) - 1) / (exp(1.) - 1)      ; used in Lierle+2026
+;    scale_radaccel[where(scale_radaccel gt 1.)] = 1.
+    
   ; Consider adding a small component to radiation acceleration due to surface reflection here.
-    ax = gravity_x + radaccel_x                                                                                                                                    
-    ay = gravity_y + radaccel_y
-    az = gravity_z + radaccel_z
+    ax = gravity_x + radaccel_x ;* scale_radaccel
+    ay = gravity_y + radaccel_y ;* scale_radaccel
+    az = gravity_z + radaccel_z ;* scale_radaccel
     
 ;
 ;    if keyword_set(debug) then begin

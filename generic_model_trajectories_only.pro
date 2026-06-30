@@ -52,8 +52,9 @@ pro generic_model_trajectories_only, Time_range_this_run = Time_range_this_run, 
 
   ;========================================COMMON BLOCKS===================================================================
 
-  COMMON Model_shared, Body, Ephemeris_time, Seed, Directory, Particle_data, Line_data, Debug
-  COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in_frame, viewpoint, FOV, N_ticks, Tickstep, Observatory, Above_Ecliptic, Boresight_Pixel, Aperture_Corners
+  COMMON Model_shared, Body, Ephemeris_time, Obs_Body_Ltime, Parent_ID, Seed, Directory, Particle_data, Line_data, Debug
+  COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in_frame, viewpoint, FOV, N_ticks, Ecliptic_Tickstep, Sun_Body_Tickstep, Observatory, Above_Ecliptic, $
+    Sun_Body, Boresight_Pixel, Aperture_Corners, Measure_Linewidths, Inst_Pointing, Inst_Diameter, Inst_LSF_wav, Line
 
   ;===========================================INPUTS=======================================================================
   if !VERSION.OS_FAMILY eq ('unix' or 'MacOS') then begin    ; A simple way to differntiate my path from Tim's
