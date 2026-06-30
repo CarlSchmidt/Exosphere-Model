@@ -45,7 +45,7 @@ PRO generate_line_profiles, Model_Image_RV, Model_Image_T=Model_Image_T
         lambda_0: reform(Morton_table_Na[0,4:9])}
 
       ; Structures allow for a different number of components per line
-      line_data = {D1:D1_struct, D2:D2_struct}
+      line_info = {D1:D1_struct, D2:D2_struct}
     end
   endcase
   
@@ -62,12 +62,12 @@ PRO generate_line_profiles, Model_Image_RV, Model_Image_T=Model_Image_T
   cgPS_Close
 
   ; Initialize arrays on which to build line profiles
-  nlines          = n_elements(tag_names(line_data))
+  nlines          = n_elements(tag_names(line_info))
   lambda_binsize  = 0.001
   lambda          = fltarr(nlines, ceil(4/lambda_binsize))
   Line_Profile    = dblarr(nlines, ceil(4/lambda_binsize))
   for i=0, nlines-1 do begin
-    transition    = line_data.(i)
+    transition    = line_info.(i)
     lambda[i,*]   = transition.lambda_air - 2.0 + lambda_binsize*indgen(ceil(4/lambda_binsize))
   endfor
 
@@ -82,7 +82,7 @@ PRO generate_line_profiles, Model_Image_RV, Model_Image_T=Model_Image_T
 
   ; Construct Line Profile
   for i=0, nlines-1 do begin
-    transition  = line_data.(i)
+    transition  = line_info.(i)
     lambda_0    = transition.lambda_0
     f           = transition.f
 
@@ -122,18 +122,18 @@ PRO generate_line_profiles, Model_Image_RV, Model_Image_T=Model_Image_T
       Terr          = fltarr(nlines)
 
       ; Initialize arrays on which to build line profiles
-      nlines          = n_elements(tag_names(line_data))
+      nlines          = n_elements(tag_names(line_info))
       lambda_binsize  = 0.001
       lambda          = fltarr(nlines, ceil(4/lambda_binsize))
       Line_Profile    = dblarr(nlines, ceil(4/lambda_binsize))
       for i=0, nlines-1 do begin
-        transition    = line_data.(i)
+        transition    = line_info.(i)
         lambda[i,*]   = transition.lambda_air - 2.0 + lambda_binsize*indgen(ceil(4/lambda_binsize))
       endfor
 
       ; Construct Line Profile
       for i=0, nlines-1 do begin
-        transition  = line_data.(i)
+        transition  = line_info.(i)
         lambda_0    = transition.lambda_0
         f           = transition.f
 

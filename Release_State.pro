@@ -2,7 +2,7 @@ pro Release_State, loc, speed_distribution, surface_distribution, speed
 
 COMMON Model_shared, Body, Ephemeris_time, Obs_Body_Ltime, Parent_ID, Seed, Directory, Particle_data, Line_data, Debug
 COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in_frame, viewpoint, FOV, N_ticks, Ecliptic_Tickstep, Sun_Body_Tickstep, Observatory, Above_Ecliptic, $
-  Sun_Body, Boresight_Pixel, Aperture_Corners, Inst_Pointing, Inst_Diameter, Inst_LSF_wav, Line
+  Sun_Body, Boresight_Pixel, Aperture_Corners, Measure_Linewidths, Inst_Pointing, Inst_Diameter, Inst_LSF_wav, Line
 
   N_particles = N_elements(loc[0,*])
 

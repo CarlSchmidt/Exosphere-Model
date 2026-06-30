@@ -134,7 +134,7 @@ Debug                  = 1                                 ; Set to 1 to output 
 exobase_height         = 0.d                               ; Exobase altitude above the surface, units of KM
 outflow_v              = 0.d                               ; Outflow velocity in km/s (non-zero for hydrothermal escape / comets)
 if keyword_set(Loop_times_this_run) then Loop_times=Loop_times_this_run else $
-Loop_times             = 10.                               ; How many loops the model should run, runs are stacked and averaged so this sets statistical noise  
+Loop_times             = 1.                               ; How many loops the model should run, runs are stacked and averaged so this sets statistical noise  
 FOV                    = 25.                               ; ARCSECONDS to a side. Field of View of output images (RA & Dec SKY COORDINATES)
 N_ticks                = 10.                               ; Number of tick marks in the axis of the sky coordinate image
 ecliptic_tickstep      = 1.0                               ; Axis tick step size in Body radii for the 'Above ecliptic' viewings  
@@ -144,7 +144,7 @@ Plot_range             = 300.                              ; For 'Above ecliptic
 ;===========================================KEYWORDS=======================================================================
 Bounce                 = 0                                 ; Particles re-impacting the surface can bounce (=1) or stick (=0) 
 Label_Phase            = 0                                 ; Display the body's phase angle as pixels? MAJOR ISSUE: Needs rotation to plane of sky. 
-Measure_Linewidths     = 0                                 ; Turns on and off line profile generation and analysis
+Measure_Linewidths     = 1                                 ; Turns on and off line profile generation and analysis
 Draw_Aperture          = 1                                 ; Draw the instrument aperture within which the emission line profile is measured
 Sun_Body               = 0                                 ; Writes additional output image in body radii coordinates with the Sun-Body vector aligned along the x axis (longer run times)
 Above_Ecliptic         = 0                                 ; Writes additional output image viewed from above the ecliptic plane with "Plot_range" setting the field of view (longer run times)
