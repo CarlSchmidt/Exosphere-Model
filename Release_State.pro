@@ -1,9 +1,11 @@
 pro Release_State, loc, speed_distribution, surface_distribution, speed
 
 COMMON Model_shared, Body, Ephemeris_time, Obs_Body_Ltime, Parent_ID, Seed, Directory, Particle_data, Line_data, Debug
-COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in_frame, viewpoint, FOV, N_ticks, Tickstep, Observatory, Above_Ecliptic, Boresight_Pixel, Aperture_Corners
+COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in_frame, viewpoint, FOV, N_ticks, Ecliptic_Tickstep, Sun_Body_Tickstep, Observatory, Above_Ecliptic, $
+  Sun_Body, Boresight_Pixel, Aperture_Corners, Measure_Linewidths, Inst_Pointing, Inst_Diameter, Inst_LSF_wav, Line
 
   N_particles = N_elements(loc[0,*])
+
   ; Calculate the flatness coefficient and planetary radius
     
     if strmid(body, 0, 3) eq '100' then begin
@@ -43,6 +45,7 @@ COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in
     Distribution = 'MBF'
     distribution_parameters = {Maxwellian_Structure, Distribution:Distribution, Temperature:Temperature}
     speed = generate_velocity_distribution(N_particles, distribution_parameters)
+;    isotropic_release = 1 ; to test without cosine dependence (disable if statement at line379 too)
   endif
   if STRPOS(speed_distribution, 'Cone') eq 0 then begin
     end_of_temperature_string_position = STRPOS(speed_distribution, 'K')
@@ -72,7 +75,7 @@ COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in
   endif
   if STRPOS(speed_distribution, 'Sputtering_ST') eq 0 then begin
     Distribution = 'Sputtering_ST'
-    SBE = 7.9 ; eV, yield = 0.000412 Na atoms / proton *** ALBITE *** sodium bearing plagioclase (See Morrissey et al. (2022) Table 2)
+    SBE = 4.4 ; eV, yield = 0.001 Na atoms / proton See Morrissey et al. (2022) Table 2
     distribution_parameters = {Sputtering_ST_structure, Distribution:Distribution, SBE:SBE}
     speed = generate_velocity_distribution(N_particles, distribution_parameters)
     isotropic_release = 1 ;ejection angles randomly distributed over 2 pi steradians NO ONE SEEMS TO KNOW IF THIS IS CORRECT, OR IF IT'S COS(NORMAL ANGLE) AS IN MB "FLUX"
@@ -117,17 +120,6 @@ COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in
     isotropic_release = 1
   endif
   
-  ; Identify the sub-observer and sub-solar coordinates in longitude and latitude AT THE EPHEMERIS_TIME being simulated, account for the observer's light time
-    cspice_subpnt, 'Near point: ellipsoid', body, ephemeris_time, 'IAU_'+body, 'LT', viewpoint, sub_observer_point_planet_frame, trgepc, srfvec
-    cspice_recpgr, body, sub_observer_point_planet_frame, re, flat, subobserver_lon_ET, subobserver_lat_ET, subobserver_radius_ET
-    
-    ; Get an x,y,z subsolar point (in km from planet center) in the body-fixed frame, account for the observer's light time
-      cspice_subslr, 'Near point: ellipsoid', body, ephemeris_time, 'IAU_'+body, 'LT', viewpoint, sub_solar_point_planet_frame, trgepc, srfvec
-
-    ; Convert this sub-solar point to planetographic latitude and longitude, in the 'IAU_' body fixed frame
-      cspice_recpgr, body, sub_solar_point_planet_frame, re, flat, subsolar_lon_ET, subsolar_lat_ET, subsolar_point_radius_ET
-    
-  
 ; ============================================== LAUNCH COORDINATES =================================================================================================
 ; Get the particle launch locations in body-centered J2000 coordinates
   CASE 1 OF
@@ -142,11 +134,13 @@ COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in
     STRMATCH(surface_distribution, 'Dayside', /FOLD_CASE): BEGIN
       release_points_J2000      = dblarr(3, N_Particles)
       release_points_Body_fixed = dblarr(3, N_Particles)
-
+      cspice_subpnt, 'Near point: ellipsoid', body, ephemeris_time, 'IAU_'+body, 'LT', viewpoint, sub_observer_point_planet_frame, trgepc, srfvec      
+      cspice_recpgr, body, sub_observer_point_planet_frame, re, flat, sub_observer_lon, sub_observer_lat, sub_observer_radius 
       ss_lon = fltarr(N_Particles) & ss_lat = fltarr(N_Particles) 
       for i = 0, N_particles - 1 do begin ; sub-solar point moves depending on the release time, so we need a for loop to do this... 
         
         ; Get an x,y,z subsolar point (in km from planet center) in the body-fixed frame at the time of release, account for the observer's light time
+          ;cspice_subslr, 'Near point: ellipsoid', body, ephemeris_time - loc[9,i], 'IAU_'+body, 'none', viewpoint, sub_solar_point_planet_frame, trgepc, srfvec
           cspice_subslr, 'Near point: ellipsoid', body, ephemeris_time - loc[9,i], 'IAU_'+body, 'LT', viewpoint, sub_solar_point_planet_frame, trgepc, srfvec 
 
         ; Convert this sub-solar point to planetographic latitude and longitude, in the 'IAU_' body fixed frame
@@ -157,8 +151,8 @@ COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in
                                                                        ; weighted towards the equator (more surface area per unit latitude)
           lon = ((180.*randomu(seed)))/!radeg - !pi/2. + sub_solar_lon ; gives a random longitude -90 and 90 degrees from the sub-solar point(in radians)
 
-          ss_lat[i] = lat                                              ; We may want to have the packets' sub-solar coordinates...
-          ss_lon[i] = Lon - sub_solar_lon                              ; sub-solar coordinates are used to weight by the solar zenith angle
+          ss_lat[i] = lat 
+          ss_lon[i] = Lon - sub_solar_lon
 
         ; Convert the release point from planetographic coordinates to rectangular coordinates, still in the body fixed frame
           cspice_pgrrec, body, lon, lat, 0., re, flat, release_point_body_fixed
@@ -179,10 +173,20 @@ COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in
     END
     STRMATCH(surface_distribution, 'Point*', /FOLD_CASE): BEGIN
        print, 'I believe the light time correction needs to be applied here... do this! (Obs_Body_Ltime)'
-      ;stop
+      stop
         release_points_J2000      = dblarr(3, N_Particles)
         release_points_Body_fixed = dblarr(3, N_Particles) 
          
+;      ; Get the sub-observer coordinates
+;        cspice_subpnt, 'Near point: ellipsoid', body, ephemeris_time, 'IAU_'+body, 'LT', viewpoint, sub_observer_point_planet_frame, trgepc, srfvec
+;        cspice_recpgr, body, sub_observer_point_planet_frame, re, flat, sub_observer_lon, sub_observer_lat, sub_observer_radius ; Convert to planetographic latitude and longitude, in the 'IAU_' body fixed frame
+;
+;      ; Get an x,y,z subsolar point (in km from planet center) in the body-fixed frame at the time of release.
+;        cspice_subslr, 'Near point: ellipsoid', body, ephemeris_time, 'IAU_'+body, 'none', viewpoint, sub_solar_point_planet_frame, trgepc, srfvec ; not sure whay we'd need light time 
+;        cspice_recpgr, body, sub_solar_point_planet_frame, re, flat, sub_solar_lon, sub_solar_lat, sub_solar_radius ; Convert to planetographic latitude and longitude, in the 'IAU_' body fixed frame
+;        lon  = (sub_solar_lon + !pi/2. + 2.*!pi) mod (2.*!pi)
+;        lat  = 0.d * cspice_rpd()
+
       ; Set the particle release points to a specified location, try equatorial dawn for a meteor impact
       ; Set a planetographic longitude, latitude, altitude position.
         alt  = 0.d
@@ -202,184 +206,124 @@ COMMON Output_shared, Plot_range, Output_Size_In_Pixels, Output_Title, Center_in
 
     END
     STRMATCH(surface_distribution, 'From_Map*', /FOLD_CASE): BEGIN
+      print, 'I believe the light time correction needs to be applied here... do this! (Obs_Body_Ltime)'
+      stop
       
-      ; The technique here is to simulate random spatially isotropic points
-      ; A map is then used to weight the loc[4,*] parameter which controls how many atoms are in each test particle
-      
-      ; Use Paul Szabo's plasma precipitation maps of Mercury during an ICME ...
-      ICME = 1
-      if ICME then begin
-        map_filename = directory+'\Surface_reservoir\H+_Precipitation_Map_400nPa_ICME.txt'
-        Proton_precip = READ_ASCII( map_filename, COMMENT_SYMBOL='#' )  
-        
-        map_filename = directory+'\Surface_reservoir\He++_Precipitation_Map_400nPa_ICME.txt'
-        Alpha_precip = READ_ASCII( map_filename, COMMENT_SYMBOL='#' )
-        
-        map        = rebin(Proton_precip.field01, 360., 180.)                        ; rebin an arbitrary sized map into degree bins in lat, lon. 
-        map_alphas = rebin(Alpha_precip.field01, 360., 180.)                         ; rebin an arbitrary sized map into degree bins in lat, lon. 
-        
-        ;Szabo_latitude_Bins = [-87.5,-82.5,-77.5,-72.5,-67.5,-62.5,-57.5,-52.5,-47.5,-42.5,-37.5,-32.5, $
-        ;                       -27.5,-22.5,-17.5,-12.5, -7.5, -2.5,  2.5,  7.5, 12.5, 17.5, 22.5, 27.5, $
-        ;                        32.5, 37.5, 42.5, 47.5, 52.5, 57.5, 62.5, 67.5, 72.5, 77.5, 82.5, 87.5]
-        ;Szabo_longitude_Bins = [-177.5,-172.5,-167.5,-162.5,-157.5,-152.5,-147.5,-142.5,-137.5,-132.5, $
-        ;                        -127.5,-122.5,-117.5,-112.5,-107.5,-102.5, -97.5, -92.5, -87.5, -82.5, $
-        ;                         -77.5, -72.5, -67.5, -62.5, -57.5, -52.5, -47.5, -42.5, -37.5, -32.5, $
-        ;                         -27.5, -22.5, -17.5, -12.5,  -7.5,  -2.5,   2.5,   7.5,  12.5,  17.5, $
-        ;                          22.5,  27.5,  32.5,  37.5,  42.5,  47.5,  52.5,  57.5,  62.5,  67.5, $
-        ;                          72.5,  77.5,  82.5,  87.5,  92.5,  97.5, 102.5, 107.5, 112.5, 117.5, $
-        ;                         122.5, 127.5, 132.5, 137.5, 142.5, 147.5, 152.5, 157.5, 162.5, 167.5, $
-        ;                         172.5, 177.5]         
-        
-        if keyword_set(debug) then begin
-          
-          ; Calculate the global precipitation rate from a map of precipitation per unit area with degree binning in lat and lon:
-            latitude_steps = (findgen(181) - 90.)/!radeg
-            surface_area_per_lat_lon_bin = fltarr(360, 180)
-            for i = 0, 180 - 1 do begin
-              surface_area_per_lat_lon_bin[*,i] = (!pi / 180.) * (re*1.e5)^2 * (sin(latitude_steps[i+1]) - sin(latitude_steps[i])) ; Area = pi/180 * R² * (sin φ1 − sin φ2) (θ1 − θ2).
-            endfor
-
-            Print, 'Global Proton Precipitation per Second =', total(surface_area_per_lat_lon_bin * map)
-            Print, 'Global Alpha  Precipitation per Second =', total(surface_area_per_lat_lon_bin * map_alphas)
-
-            ;-------------------------------- YIELDS --------------------------------------- 
-               Proton_Yield = 0.000412          ; Albite value from Morrissey et al. 2022, Table 2, needs to be consistent with the SBE (7.9eV) listed in the beginning of this program. 
-               Alpha_Yield  = Proton_Yield * 8. ; Vorburger et al. (2014), Wurz et al. (2007) 
-            ;------------------------------------------------------------------------------ 
-            
-            Upward_flux_at_exobase_via_Szabo = total(surface_area_per_lat_lon_bin * map) * Proton_Yield + $
-                                               total(surface_area_per_lat_lon_bin * map_alphas) * Alpha_Yield 
-            Print, 'Global Sputtered Atoms/s (number to place at simulation input) =', Upward_flux_at_exobase_via_Szabo
-
-          cgPS_Open, filename = directory+'\Surface_reservoir\Szabo_protons.eps', /ENCAPSULATED, xsize = 7.5, ysize = 7.5
-          !P.font = 1
-          device, SET_FONT = 'Helvetica Bold', /TT_FONT
-          !p.charsize = 1.5
-            loadgood
-            ;cgLoadCT, 27
-            axis_format = {xtickinterval:30, ytickinterval:30, ytitle:'Subsolar longitude [degrees]', xtitle:'Subsolar latitude [degrees]'}
-            cgimage, map, /keep_aspect, /axes, xr = [-180, 180], yr = [-90,90], axkey=axis_format, POSITION=[0.15, 0.50, 0.75, 0.95], minval = min(map), maxval = max(map)
-            cgCOLORBAR, /right, /vertical, title = 'Proton Precipition [cm!U-2!N s!U-1!N]', range = minmax(Proton_precip.field01), /fit 
-            cgimage, map_Alphas, /keep_aspect, /axes, xr = [-180, 180], yr = [-90,90], axkey=axis_format, POSITION=[0.15, 0.05, 0.75, 0.55], /noerase, minval = min(map_Alphas), maxval = max(map_Alphas)
-            cgCOLORBAR, /right, /vertical, title = 'Alpha Precipition [cm!U-2!N s!U-1!N]', range = minmax(Alpha_precip.field01), /fit
-          cgPS_Close
-        endif
-        
-      endif else begin
-        
-        ; Use the Reimpacting flux fits file ...      
-          map_filename = directory+'Surface_reservoir\Mean_Reimpacting_Flux_Map.fit'
-          map = mrdfits(map_filename) ; TAKE CARE THAT LONGITUDE IS IN THE PROPER CONVENTION HERE: planetographic WEST longitude is the x axis (left-handed longitude)      
-      endelse
+      map_filename = 'C:\IDL\Generic Model V4\read_write\Surface_reservoir\Mean_Reimpacting_Flux_Map.fit'
+      map = mrdfits(map_filename) ; TAKE CARE THAT LONGITUDE IS IN THE PROPER CONVENTION HERE: planetographic WEST longitude is the x axis (left-handed longitude)      
 
       ; Get an x,y,z subsolar point (in km from planet center) in the body-fixed frame at the time of release.
-        sub_solar_point_planet_frame = fltarr(3, N_Particles)
-        for i = 0, N_Particles - 1 do begin
-          cspice_subslr, 'Near point: ellipsoid', body, ephemeris_time - loc[9,i], 'IAU_'+body, 'none', viewpoint, sub_solar_point_BF, trgepc, srfvec
-          sub_solar_point_planet_frame[*,i] = sub_solar_point_BF
-        endfor
+      sub_solar_point_planet_frame = fltarr(3, N_Particles)
+      for i = 0, N_Particles - 1 do begin
+        cspice_subslr, 'Near point: ellipsoid', body, ephemeris_time - loc[9,i], 'IAU_'+body, 'none', viewpoint, sub_solar_point_BF, trgepc, srfvec
+        sub_solar_point_planet_frame[*,i] = sub_solar_point_BF
+      endfor
       
       ; Convert this sub-solar point to planetographic latitude and longitude, in the 'IAU_' body fixed frame
         cspice_recpgr, body, sub_solar_point_planet_frame, re, flat, sub_solar_lon, sub_solar_lat, sub_solar_point_radius
-        
-      ; Generate isotropic release points in the body-fixed frame
-        lat       = asin(1.d - 2.d*randomu(seed, N_particles, /double))   ; gives a random number, -90 to 90 degrees (in radians) weighted towards the equator (more surface area per unit latitude)
-        lon       = 360.d*randomu(seed, N_particles, /double) /!RADEG     ; gives random longitudes 0 to 360 (in radians)
 
-      ; Find all their sub-solar lats and lons at the release time  
-        ss_lat    = lat - sub_solar_lat                                   ; We need to have the packets' sub-solar coordinates...
-        ss_lon    = Lon - sub_solar_lon                                   ; Sub-solar coordinates are used to locate position relative to the precipitation map that uses MSO coords
+      ; Generate a randomn latitude and longitude so that the zenith of the hemisphere is along the positive y direction.
+        lat = asin(1.0-2.0*randomu(seed, N_particles, /double))                            ; gives a random number between -90 and 90 degrees (in radians)
+        ; weighted towards the equator (more surface area per unit latitude)
+        lon = ((180.*randomu(seed, N_particles, /double)))/!radeg - !pi/2. + sub_solar_lon ; gives a random longitude -90 and 90 degrees from the sub-solar point(in radians)
       
-      ; Convert coords to cartesian, body-fixed coords units of planetary radii here, not km
-        cspice_pgrrec, body, lon, lat, replicate(0.D, N_particles), re, flat, release_points_body_fixed
+        lon = lon mod (2.*!pi)
+;      ; Generate isotropic release points in the body-fixed frame
+;        lat = asin(1.d - 2.d*randomu(seed, N_particles, /double))             ; gives a random number, -90 to 90 degrees (in radians) weighted towards the equator (more surface area per unit latitude)
+;        lon = 360.d*randomu(seed, N_particles, /double) /!RADEG               ; gives random longitudes 0 to 360 (in radians)
 
+      ss_lat = lat
+      ss_lon = Lon - sub_solar_lon
+      
+        cspice_pgrrec, body, lon, lat, replicate(0.D, N_particles), re, flat, release_points_body_fixed; convert these to cartesian, body fixed coords units of planetary radii here, not km
+        
       ; Convert planetographic coodinates to the J2000 frame at the ephemeris time for each particles release
         release_points_J2000      = dblarr(3, N_Particles)
         for i = 0, N_Particles - 1 do begin
           cspice_pxform, 'IAU_'+body, 'J2000', ephemeris_time - loc[9,i], frame_rotate_matrix
           cspice_mxv, frame_rotate_matrix, release_points_body_fixed[*,i], release_point_J2000_frame
-          release_points_J2000[*,i]      = release_point_J2000_frame / re     ; the initial packet starting points in cartesian units of planetary radii
+          release_points_J2000[*,i]      = release_point_J2000_frame / re ;the initial packet starting points in cartesian units of planetary radii
         endfor
         
-       
-     ; ------------------------------------------------------------------------------ READ ME ----------------------------------------------------------------
-     ;
-     ; The approach here is to generate a globally isotropic release rate 
-     ; Then, the loc[4,*] fractional packet content is used to set weights above or below unity
-     ; The average weight MUST remain unity to conserve all calculated quantities from the "upward flux at exobase" variable
-     ; Weights are set according to the packet's initial lat & lon location relative to a unity normalized precipitation map.  
-     ; Note that since packets are distributed isotropically, there are already more packets at lower latitudes, so we needed not weight for surface area (else we'd be doing that twice)  
-     ; 
-     ;--------------------------------------------------------------------------------------------------------------------------------------------------------
-
-       Normalized_precipitation_map = map / mean(map)       
-       loc[4,*]                     = interpolate(normalized_precipitation_map, (ss_lon*!radeg + 180.) mod 360., ss_lat*!radeg + 90.)  ; weighted fractional content of the packets
-       scale_N_Packets_conserved    = N_particles / total((loc[4,*])) 
-       loc[4,*]                     = loc[4,*] * scale_N_Packets_conserved                                     ; force weighted fractional content of the packets to an average of 1. 
-
-    END  
+      ;------------------------------------hack------------------------------------------------------------------------------  
+        ;normalize = rebin(transpose(mean(map, dim = 1)), 360, 180)           ; HACK this normalization will remove the latitude Na
+        normalize = mean(map)
+        
+        map = map / normalize                                                 ; normalize the map to unity
+        map[*,179] = 1.                                                       ; fix the edge
+        map[where(map eq 0, /null)] = 1.                                      ; fix any missing pixels
+        map[83:97,*]   = 8. * map[83:97,*]                                    ; hacking here
+        map[263:277,*] = 8. * map[263:277,*]
+      ;------------------------------------hack------------------------------------------------------------------------------    
+      loc[4,*] = interpolate(map, lon*!radeg, lat*!radeg + 90.)               ; weight the particle initial contents by the map
+      
+      ; normalize for the photon flux per unit surface area
+        SZA_map = cos(SS_Lon)*cos(SS_Lat)
+        SZA_map[where(SZA_map le 0., /NULL)] = 0.
+        normalize_for_SZA = float(n_particles) / total(SZA_map)
+        loc[4,*] = loc[4,*]*normalize_for_SZA * SZA_map
+        
+    END
+    STRMATCH(surface_distribution, 'Dust', /FOLD_CASE): BEGIN               ; Use saved loc arrays from previous run modeling dust to simulate sodium from cometary dust
+      
+      save_path = 'C:\IDL\Generic Model V4\read_write\Dust_Loc_Array_ '
+      loop_indices = [0, 9]  ; start and end loop to be considered. inclusive on both ends
+      
+      save_path = 'C:\IDL\Generic Model V4\read_write\testdust_Loc_Array_ '
+      loop_indices = [0, 49]  ; start and end loop to be considered. inclusive on both ends
+      particles_per_loop = long(2^15-1)  ; number_of_particles for the dust run
+      N_dust_particles = (loop_indices[1] - loop_indices[0] + 1) * particles_per_loop
+      
+      dust_body_fixed = fltarr(3, N_dust_particles)
+      dust_age = fltarr(N_dust_particles)
+      dust_time_diff = fltarr(N_dust_particles)
+      loc_original = loc
+      
+      ; loop through dust loops to get particle positions
+      for i = loop_indices[0], loop_indices[1] do begin
+        restore, save_path + strcompress(i, /remove_all) + '.sav'
+        count = i - loop_indices[0]
+        dust_body_fixed[*, count*particles_per_loop : (count+1)*particles_per_loop - 1] = loc[0:2, *]
+        dust_age[count*particles_per_loop : (count+1)*particles_per_loop - 1] = loc[8, *]
+        dust_time_diff[count*particles_per_loop : (count+1)*particles_per_loop - 1] = loc[9, *]
+      endfor
+      
+      ; Remove the body's J2000 orbital position (relative to origin aka planet center) to the inital x,y,z packet positions (relative to an origin of the body, J2000)
+      cspice_spkezr, body, ephemeris_time - Obs_Body_Ltime, 'J2000', 'None', '0', state_at_release, junk_light_time
+      dust_body_fixed[0:2,*] = dust_body_fixed[0:2,*] - rebin(state_at_release[0:2], 3, N_dust_particles)
+      
+      loc = temporary(loc_original)  ; restore original loc array that got overwritten
+      
+      ; use RNG to pick coordinate pairs from dust distribution (could be improved with interpolating)
+      inds = floor(randomu(seed, N_particles, /double)*N_dust_particles)
+      release_points_body_fixed = dust_body_fixed[0:2, inds]
+      depletion_time = 1728000. ;20days
+      loc[4,*] = exp(-dust_age[inds]/depletion_time)
+      
+      release_points_J2000 = release_points_body_fixed / re
+      
+      ;release_points_J2000 /= 10.
+      
+    END
     ELSE: PRINT, 'Undefined spatial distribution requested as an input'  
   ENDCASE
 
   ; THE FINAL LAUNCH COORDINATES. UNITS OF BODY-RADII. BODY-CENTERED J2000 COORDINATES
-    loc[0:2,*] = temporary(release_points_J2000) ; Allocate the release coordinates to the initialize the loc array. 
-                                                 ; Trajectory integrations will be done in J2000
-                                                 ; These coords are later converted from planetary radii to km in the main level generic_model.pro
-
+    loc[0:2,*] = temporary(release_points_J2000) ; Allocate the release coordinate to the initialize the loc array
+    
   if keyword_set(debug) then begin
     angles_from_normal = fltarr(N_particles) ; for inspecting the ejection angle wrt local surface normal vector
 
     if strmid(body, 0, 3) eq '100' then cspice_reclat, release_points_body_fixed, radius, longitudes, latitudes else $
       cspice_recpgr, body, release_points_body_fixed, re, flat, longitudes, latitudes, radius ; Convert to planetographic latitude and longitude, in the 'IAU_' body fixed frame
-    window, 1
-    cgplot, (longitudes*!radeg + 360.) mod 360., latitudes*!radeg, psym=3, xr=[0,360], yr=[-90,90], ytitle = 'Latitude', $             ; particle launch coordinates 
-        title='Particle Launch Coordinates', xtickinterval = 30., ytickinterval = 30., xtitle = 'Planetographic W Longitude'
-    cgplot, (subsolar_lon_ET*!radeg + 360.) mod 360., subsolar_lat_ET*!radeg, psym = 16, symsize = 2, color = 'red', /overplot         ; the sub-solar point, at simulation end time (not release times)
-    cgplot, (subobserver_lon_ET*!radeg + 360.) mod 360., subobserver_lat_ET*!radeg, psym = 16, symsize = 2, color = 'blue', /overplot  ; the sub-observer point, at simulation end time (not release times)
-    
-    cgtext, (subobserver_lon_ET*!radeg + 360.) mod 360., subobserver_lat_ET*!radeg+10., 'Sub-'+viewpoint+' Point', color = 'blue', align = 0.5, charthick = 2
-    cgtext, (subsolar_lon_ET*!radeg + 360.) mod 360., subsolar_lat_ET*!radeg+10., 'Sub-Solar Point', color = 'red', align = 0.5, charthick = 2
-    
-    
-    ; Make a lon & lat map of the upward flux being ejected, overplot the Sub-Earth and Sub-Solar points. 
-      release_map = fltarr(360, 180) 
-      
-      if keyword_set(ICME) then begin
-        ; Determine the flux per sq cm surface area if the upward flux were globally uniform .
-          average_ejection_globally_integrated = Upward_flux_at_exobase_via_Szabo / (4.*!pi*(re*1.e5)^2)
-        
-        ; the surface area per bin differs, account for this  
-          normalize_area                       = surface_area_per_lat_lon_bin / mean(surface_area_per_lat_lon_bin)
-  
-          for i = 0, N_Particles - 1 do begin
-            release_map[(longitudes[i]*!radeg + 360.) mod 360., lat[i]*!radeg+90.] = release_map[(longitudes[i]*!radeg + 360.) mod 360., lat[i]*!radeg+90.] $
-                                                                                     + loc[4,i]*average_ejection_globally_integrated * $
-                                                                                     normalize_area[(longitudes[i]*!radeg + 360.) mod 360., lat[i]*!radeg+90.]
-          endfor
-  
-        PRINT, 'Calculated Global Rate in atoms/s = ', TOTAL(surface_area_per_lat_lon_bin*release_map) ; This *MUST* be the same as the global precipitaion x the yield
-      
-      release_map = rebin(release_map, 60, 30)
 
-      cgPS_Open, filename = directory+'\Surface_reservoir\Release_map.eps', /ENCAPSULATED, xsize = 7.5, ysize = 7.5
-      !P.font = 1
-      device, SET_FONT = 'Helvetica Bold', /TT_FONT
-      !p.charsize = 1.5
-  
-        axis_format = {xtickinterval:30, ytickinterval:30, ytitle:'Latitude [degrees]', xtitle:'Planetographic W Longitude'}
-        cgimage, release_map, /keep_aspect, /axes, xr = [0,360], yr = [-90,90], axkey=axis_format, POSITION=[0.15, 0.50, 0.75, 0.95], minval = min(release_map), maxval = max(release_map)
-        cgCOLORBAR, /right, /vertical, title = 'Ejection rate [cm!U-2!N s!U-1!N]', range = minmax(release_map), /fit
-        
-        cgplot, (subsolar_lon_ET*!radeg + 360.) mod 360., subsolar_lat_ET*!radeg, psym = 16, color = 'red', /overplot         ; the sub-solar point, at simulation end time (not release times)
-        cgplot, (subobserver_lon_ET*!radeg + 360.) mod 360., subobserver_lat_ET*!radeg, psym = 16, color = 'blue', /overplot  ; the sub-observer point, at simulation end time (not release times)
-        cgtext, (subobserver_lon_ET*!radeg + 360.) mod 360., subobserver_lat_ET*!radeg+10., 'Sub-'+viewpoint, color = 'blue', align = 0.5
-        cgtext, (subsolar_lon_ET*!radeg + 360.) mod 360., subsolar_lat_ET*!radeg-16., 'Sub-Solar', color = 'red', align = 0.5
-      cgPS_Close
-
-    endif
+    cgplot, (longitudes*!radeg + 360.) mod 360., latitudes*!radeg, psym=3, xr=[0,360], yr=[-90,90], title='Red: Sub-Sol Blue: Sub-Obs' ; particle launch coordinates 
+    if STRMATCH(surface_distribution, 'Dayside', /FOLD_CASE) or STRMATCH(surface_distribution, 'Point*', /FOLD_CASE) THEN BEGIN
+      cgplot, (sub_solar_lon*!radeg + 360.) mod 360., sub_solar_lat*!radeg, psym = 16, symsize = 2, color = 'red', /overplot             ; the sub-solar point
+      cgplot, (sub_observer_lon*!radeg + 360.) mod 360., sub_observer_lat*!radeg, psym = 16, symsize = 2, color = 'blue', /overplot      ; the sub-observer point
+    endif  
   endif
-  
-
+;  stop
 ; ============================================== LAUNCH DIRECTIONS =================================================================================================
 
 if keyword_set(isotropic_release) then begin ;Generate randomly distributed isotropic release positions and velocities on a unit sphere 
@@ -432,7 +376,7 @@ if keyword_set(isotropic_release) then begin ;Generate randomly distributed isot
 endif 
 
 ;---------------------------------MAXWELL BOLZMANN FLUX DISTRIBUTIONS ARE *anisotropic* PREFERENTIALLY RADIAL (I.E. NOT ISOTROPIC)--------------------------------------------------------------------------------- 
-; weight ejectrion angles as cos of the surface normal
+; weight ejection angles as cos of the surface normal
   if ((STRPOS(speed_distribution, 'MBF') eq 0) or (STRPOS(speed_distribution, 'Johnson_2002') eq 0)) then begin
     window, 4
   

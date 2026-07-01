@@ -32,6 +32,7 @@ Pro LOAD_LINE_DATA, LINE
     'Mg-2853':   NAME = strcompress('Mg-2853'+ cgSymbol('angstrom'))
     'Ca-4227':   NAME = strcompress('Ca-4227'+ cgSymbol('angstrom'))
     'H2O':       NAME = 'H!D2!NO' 
+    'Fe-D':      NAME = 'Fe'
   ENDCASE
   
   ;==================================UNITY OPTICAL DEPTH===================================================
@@ -45,6 +46,7 @@ Pro LOAD_LINE_DATA, LINE
     'Mg-2853':   unity_optical_depth = 3.7e11
     'Ca-4227':   unity_optical_depth = 1.e11 
     'H2O':       unity_optical_depth = 9.e99 ; TBD
+    'Fe-D':      unity_optical_depth = 9.e99
   ENDCASE
   
   ;===================================Solar Line Spectra===================================================
@@ -64,6 +66,11 @@ Pro LOAD_LINE_DATA, LINE
         numline  = 2400   ; 4244.90 A 
         spectrum = 'Kurucz_2005_irradthuwl.dat'     ; Great resolution. WL in nm, flux in flux is in W/m2/nm at 1AU
       end 
+    'Fe-D':  begin
+      skipline = 215000 ; 5140.91 A
+      numline  = 4500   ; 5185.90 A
+      spectrum = 'Kurucz_2005_irradthuwl.dat'     ; Great resolution. WL in nm, flux in flux is in W/m2/nm at 1AU
+    end
     'Mg-2853': begin                              ; via https://doi.org/10.1016/j.jqsrt.2010.01.036 Need to use a higher resolution spectrum here. 
         spectrum = 'sao2010.solref.converted.txt' ; 0.4 A resolution (poor!), converted to 0.1A intervals. WL in nm, flux in Photons s-1 cm-2 nm-1 at 1AU
       end
@@ -88,7 +95,7 @@ Pro LOAD_LINE_DATA, LINE
       WL_A = temporary(WL_nm) * 10.                                                               ; Wavelength from nm into angstroms
     end
   ENDCASE
- 
+  
   Line_data = {name:name, line:line, unity_optical_depth:unity_optical_depth, wavelength:WL_A, intensity:flux}
   return
 END
