@@ -106,16 +106,18 @@ PRO generate_line_profiles, Model_Image_RV, Model_Image_T=Model_Image_T
   endfor
 
   ; --------------------------------------------------- GENERATE EMISSION TEMPERATURE IMAGE FROM LINE PROFILES --------------------------------------------------------------------
+  stackedModel_Image_R  = MRDFITS(strcompress(directory + Output_Title + '.fit'), 0, /SILENT)
   stackedModel_Image_CD = MRDFITS(strcompress(directory + Output_Title + '.fit'), 1, /SILENT)
   Model_Image_T         = fltarr(Output_Size_In_Pixels[0],Output_Size_In_Pixels[1])
   Model_Image_Terr      = fltarr(Output_Size_In_Pixels[0],Output_Size_In_Pixels[1])
   Model_Image_RV       /= mean(Model_Image_RV)    ; get numbers more reasonable, calibration doesn't matter
+  print, 'Generating image of spectral temperature'
 
   for x=0, Output_Size_In_Pixels[0] -1 do begin
     for y=0, Output_Size_In_Pixels[1] -1 do begin
 
       ; Only include pixels with at least 10^8 atoms
-      if stackedModel_Image_CD[x,y] lt 1.e8 then continue
+      if stackedModel_Image_CD[x,y] lt 1.e8 or stackedModel_Image_R[x,y] eq 0 then continue
 
       radial_v_hist = Model_Image_RV[x,y,*]
       T             = fltarr(nlines)
