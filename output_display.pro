@@ -238,8 +238,6 @@ pro output_display, loc, g, atoms_per_packet, Image_type, Model_Image_RV, loop_n
         cspice_spkpos, Body, ephemeris_time, 'J2000', 'LT', viewpoint, Body_Observer_vector, light_time
         cspice_recrad, (Body_Observer_vector - obs_J2000), Body_distance_WRT_obs, Body_RA_WRT_obs, Body_dec_WRT_obs
         ;Body RA and Dec from an observatory verified accurate within <1" via JPL Horizons (for Sun & Mercury)
-        print, Body_RA_WRT_obs * !RADEG
-        print, Body_dec_WRT_obs * !RADEG
         
   ;      ; Now get the RA and Dec of all the particles
   ;      ; All test particles are currently in the J2000 frame with body center as the origin.
